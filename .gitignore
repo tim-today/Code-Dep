@@ -1,0 +1,27 @@
+# === Runtime data ===
+data/
+.code-dep/
+
+# === Build artifacts ===
+/server
+*.exe
+*.test
+*.out
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+nohup.out
+
+# === Env ===
+.env

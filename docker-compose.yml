@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  code-dep:
+    build: .
+    image: code-dep:latest
+    container_name: code-dep
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - code-dep-data:/app/data
+    environment:
+      - PORT=8080
+
+volumes:
+  code-dep-data:
+    driver: local
