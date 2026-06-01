@@ -209,8 +209,8 @@ function selectRefOption(btn, ev) {
   picker.classList.remove("open");
 }
 
-function notifyTypeLabel(t) {
-  return { wecom: t('notify_wecom'), feishu: t('notify_feishu') }[t] || t || "-";
+function notifyTypeLabel(tp) {
+  return { wecom: t('notify_wecom'), feishu: t('notify_feishu') }[tp] || tp || "-";
 }
 
 function projectDisplayStatus(project) {
