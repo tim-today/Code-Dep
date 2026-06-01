@@ -90,10 +90,10 @@ function esc(s = "") {
 }
 
 function statusBadge(s = "") {
-  const labels = { success: "成功", failed: "失败", stopped: "已终止", running: "发布中", valid: "有效", invalid: "无效", unknown: "未知" };
+  const labels = { success: t('status_success'), failed: t('status_failed'), stopped: t('status_stopped'), running: t('status_running'), valid: t('status_valid'), invalid: t('status_invalid'), unknown: t('status_unknown') };
   const icons = { success: "check_circle", failed: "error", stopped: "stop_circle", running: "sync", valid: "check_circle", invalid: "cancel", unknown: "warning" };
   const key = s || "unknown";
-  return `<span class="badge ${esc(key)}"><span class="material-symbols-outlined">${icons[key] || "radio_button_unchecked"}</span>${esc(labels[key] || s || "未发布")}</span>`;
+  return `<span class="badge ${esc(key)}"><span class="material-symbols-outlined">${icons[key] || "radio_button_unchecked"}</span>${esc(labels[key] || s || t('unpublished'))}</span>`;
 }
 
 function nodeName(id) {
@@ -130,10 +130,10 @@ function refPicker({ id, optionsId, name = "", value = "", refs = [], disabled =
     <div class="ref-selected">${refSelectedHtml(current)}</div>
     <div class="ref-actions">
       <button type="button" class="ref-trigger" onclick="toggleRefDropdown(this, event)" ${disabled ? "disabled" : ""}><span class="material-symbols-outlined">arrow_drop_down</span>选择</button>
-      ${refresh ? `<button type="button" class="action-icon ref-refresh" onclick="${refresh}" title="刷新分支/Tag" ${disabled ? "disabled" : ""}><span class="material-symbols-outlined">sync</span></button>` : ""}
+      ${refresh ? `<button type="button" class="action-icon ref-refresh" onclick="${refresh}" title="${t('refresh_refs')}" ${disabled ? "disabled" : ""}><span class="material-symbols-outlined">sync</span></button>` : ""}
     </div>
     <div class="ref-dropdown">
-      <input class="ref-filter" placeholder="过滤分支 / Tag" autocomplete="off" oninput="filterRefOptions(this)">
+      <input class="ref-filter" placeholder="${t('filter_refs')}" autocomplete="off" oninput="filterRefOptions(this)">
       <div id="${esc(optionsId)}" class="ref-options">${refOptionHtml(list, current)}</div>
     </div>
   </div>`;
@@ -210,7 +210,7 @@ function selectRefOption(btn, ev) {
 }
 
 function notifyTypeLabel(t) {
-  return { wecom: "企业微信", feishu: "飞书" }[t] || t || "-";
+  return { wecom: t('notify_wecom'), feishu: t('notify_feishu') }[t] || t || "-";
 }
 
 function projectDisplayStatus(project) {
@@ -231,16 +231,16 @@ function isAdmin() {
 }
 
 function roleLabel(role) {
-  return { admin: "管理员", user: "普通用户" }[role] || role || "-";
+  return { admin: t('user_admin'), user: t('user_normal') }[role] || role || "-";
 }
 
 function userPermSummary(u) {
-  if (u.role === "admin") return "全部项目";
+  if (u.role === "admin") return t('all_projects');
   return (u.projectPerms || []).map(p => {
     const proj = state.projects.find(x => x.id === p.projectId);
     const flags = [p.canRun ? "运行" : "", p.canEdit ? "修改" : ""].filter(Boolean).join("/");
     return proj ? `${proj.name}(${flags})` : "";
-  }).filter(Boolean).join("、") || "无授权";
+  }).filter(Boolean).join("、") || t('user_no_perm');
 }
 
 function projectPerm(projectId) {
@@ -280,7 +280,7 @@ function goProjects() {
 }
 
 function goGlobalConfig() {
-  if (!isAdmin()) return alert("需要管理员权限");
+  if (!isAdmin()) return alert(t('need_admin'));
   state.view = "global";
   render();
 }
@@ -351,10 +351,10 @@ async function logout() {
 }
 
 function openAccountMenu() {
-  openModal("账号", `
+  openModal(t('secret_account'), `
     <div class="account-panel">
       <div><strong>${esc(state.currentUser?.name || "-")}</strong><span>${esc(roleLabel(state.currentUser?.role))} · ${esc(state.currentUser?.code || "")}</span></div>
-      <button type="button" onclick="openChangePassword()">修改密码</button>
+      <button type="button" onclick="openChangePassword()">${t('change_password')}</button>
       <button type="button" class="danger" onclick="logout()">退出登录</button>
     </div>`, null);
   $("#modalSave").style.display = "none";
@@ -362,16 +362,16 @@ function openAccountMenu() {
 
 function openChangePassword() {
   if ($("#modal").open) $("#modal").close();
-  openModal("修改密码", `
+  openModal(t('change_password'), `
     <div class="form-grid">
-      <div class="field full"><label>原密码</label><input name="oldPassword" type="password" autocomplete="current-password"></div>
-      <div class="field full"><label>新密码</label><input name="newPassword" type="password" autocomplete="new-password"></div>
-      <div class="field full"><label>确认新密码</label><input name="confirmPassword" type="password" autocomplete="new-password"></div>
+      <div class="field full"><label>${t('old_password')}</label><input name="oldPassword" type="password" autocomplete="current-password"></div>
+      <div class="field full"><label>${t('new_password')}</label><input name="newPassword" type="password" autocomplete="new-password"></div>
+      <div class="field full"><label>${t('confirm_password')}</label><input name="confirmPassword" type="password" autocomplete="new-password"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
-      if (data.newPassword !== data.confirmPassword) throw new Error("两次输入的新密码不一致");
+      if (data.newPassword !== data.confirmPassword) throw new Error(t('password_mismatch'));
       await api("/api/auth/change-password", { method: "POST", body: JSON.stringify(data) });
-      alert("密码已修改，请使用新密码登录");
+      alert(t('password_changed'));
       $("#modal").close();
       await logout();
     });
@@ -382,11 +382,11 @@ function render() {
   renderAppShell();
   document.body.classList.toggle("detail-mode", state.view === "project-detail");
   const titles = {
-    projects: ["项目", "管理项目配置、发布环境、版本回退。", "新建项目"],
-    "project-detail": ["项目详情", "查看状态、发布和编辑项目。", ""],
-    "project-editor": [state.editorProjectId ? "编辑项目" : "新建项目", "配置源码、workspace、发布环境和脚本。", ""],
-    global: ["全局配置", "管理系统级秘钥、通知、节点和全局设置。", ""],
-    records: ["发布记录", "查看历史发布并重新部署。", ""]
+    projects: [t('nav_projects'), t('page_desc_projects'), t('btn_new_project')],
+    "project-detail": ["项目详情", t('page_desc_detail'), ""],
+    "project-editor": [state.editorProjectId ? "编辑项目" : t('btn_new_project'), "配置源码、workspace、发布环境和脚本。", ""],
+    global: [t('nav_global'), t('page_desc_global'), ""],
+    records: [t('nav_records'), t('page_desc_records'), ""]
   };
   const [title, desc, btn] = titles[state.view];
   $("#pageTitle").textContent = title;
@@ -397,31 +397,32 @@ function render() {
   ({ projects: renderProjects, "project-detail": renderProjectDetail, "project-editor": renderProjectEditor, global: renderGlobalConfig, records: renderRecords }[state.view])();
   initShellEditors();
   syncRoute();
+  translatePage();
 }
 
 function renderProjects() {
   const groups = projectGroups();
   const list = state.projects.filter(p => {
     const s = `${p.code || ""} ${p.name || ""} ${p.group || ""} ${projectWorkerNames(p)} ${projectDeployNodes(p)}`.toLowerCase();
-    return (!searchText || s.includes(searchText.toLowerCase())) && (!groupFilter || (p.group || "未分组") === groupFilter);
+    return (!searchText || s.includes(searchText.toLowerCase())) && (!groupFilter || (p.group || t('ungrouped')) === groupFilter);
   });
   $("#content").innerHTML = state.projects.length ? `
     <div class="tabs">
-      <button class="tab ${groupFilter ? "" : "active"}" onclick="setGroupFilter('')">全部项目</button>
+      <button class="tab ${groupFilter ? "" : "active"}" onclick="setGroupFilter('')">${t('all_projects')}</button>
       ${groups.map(g => `<button class="tab ${groupFilter === g ? "active" : ""}" onclick="setGroupFilter('${escAttr(g)}')">${esc(g)}</button>`).join("")}
     </div>
-    <div class="table-wrap"><table class="table"><thead><tr><th>编号</th><th>名称</th><th>分组</th><th>worker</th><th>发布节点</th><th>最后状态</th><th>最后发布</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="table"><thead><tr><th>${t('col_code')}</th><th>${t('col_name')}</th><th>${t('col_group')}</th><th>${t('col_worker')}</th><th>${t('col_nodes')}</th><th>${t('col_status')}</th><th>${t('col_time')}</th></tr></thead><tbody>
       ${list.map(p => `<tr>
         <td class="mono">#${esc(p.code)}</td>
         <td><button class="link-btn" onclick="openProjectDetail('${p.id}')">${esc(p.name)}</button></td>
-        <td><span class="badge">${esc(p.group || "未分组")}</span></td>
+        <td><span class="badge">${esc(p.group || t('ungrouped'))}</span></td>
         <td class="mono">${esc(projectWorkerNames(p))}</td>
         <td class="mono">${esc(projectDeployNodes(p))}</td>
         <td>${statusBadge(projectDisplayStatus(p))}</td>
         <td>${fmt(projectDisplayTime(p))}</td>
       </tr>`).join("")}
     </tbody></table></div>
-    <div class="hint">显示 ${list.length} / ${state.projects.length} 个项目</div>` : `<div class="empty">暂无项目，先新建一个发布项目。</div>`;
+    <div class="hint">显示 ${list.length} / ${state.projects.length} 个项目</div>` : `<div class="empty">${t('no_projects')}</div>`;
 }
 
 function projectGroups() {
@@ -451,24 +452,24 @@ function maskUrl(url = "") {
 function renderSecrets() {
   $("#content").innerHTML = state.secrets.length ? `
     <section class="card">
-      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">key</span><h2>秘钥管理</h2></div><button class="primary" onclick="editSecret()">新增秘钥</button></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th>编码</th><th>类型</th><th>账号</th><th>备注</th><th>更新时间</th><th class="right">操作</th></tr></thead><tbody>
+      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">key</span><h2>${t('global_secrets')}</h2></div><button class="primary" onclick="editSecret()">新增秘钥</button></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('secret_type')}</th><th>${t('secret_account')}</th><th>${t('secret_remark')}</th><th>${t('secret_updated')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
     ${state.secrets.map(s => `<tr>
-      <td class="mono"><strong>${esc(s.code)}</strong></td><td><span class="badge">${esc(s.type)}</span></td><td>${esc(s.username || (s.token ? "Token" : "-"))}</td>
+      <td class="mono"><strong>${esc(s.code)}</strong></td><td><span class="badge">${esc(s.type)}</span></td><td>${esc(s.username || (s.token ? t('secret_token') : "-"))}</td>
       <td>${esc(s.remark || "-")}</td><td>${fmt(s.updatedAt)}</td>
-      <td class="actions"><button class="action-icon" title="编辑" onclick="editSecret('${s.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="删除" onclick="removeItem('secrets','${s.id}')"><span class="material-symbols-outlined">delete</span></button></td>
+      <td class="actions"><button class="action-icon" title="${t('btn_edit')}" onclick="editSecret('${s.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="${t('btn_delete')}" onclick="removeItem('secrets','${s.id}')"><span class="material-symbols-outlined">delete</span></button></td>
     </tr>`).join("")}</tbody></table></div></section>` : `<div class="empty">暂无秘钥。</div>`;
 }
 
 function renderNodes() {
   $("#content").innerHTML = state.nodes.length ? `
     <section class="card">
-      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>节点管理</h2></div><button class="primary" onclick="editNode()">新增节点</button></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th>编码</th><th>类型</th><th>地址</th><th>目录</th><th>秘钥</th><th class="right">操作</th></tr></thead><tbody>
+      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div><button class="primary" onclick="editNode()">新增节点</button></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th>编码</th><th>类型</th><th>${t('node_address')}</th><th>${t('node_dir')}</th><th>${t('node_secret')}</th><th class="right">操作</th></tr></thead><tbody>
     ${state.nodes.map(n => `<tr>
       <td class="mono"><strong>${esc(n.code)}</strong><br>${statusBadge(n.status || "unknown")}</td><td><span class="badge">${esc(n.type)}</span></td><td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : "-")}</td>
       <td class="mono">${esc(n.baseDir || "-")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td><td>${esc(state.secrets.find(s => s.id === n.secretId)?.code || "-")}</td>
-      <td class="actions"><button class="action-icon" title="编辑" onclick="editNode('${n.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="删除" onclick="removeItem('nodes','${n.id}')"><span class="material-symbols-outlined">delete</span></button></td>
+      <td class="actions"><button class="action-icon" title="${t('btn_edit')}" onclick="editNode('${n.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="${t('btn_delete')}" onclick="removeItem('nodes','${n.id}')"><span class="material-symbols-outlined">delete</span></button></td>
     </tr>`).join("")}</tbody></table></div></section>` : `<div class="empty">暂无节点。</div>`;
 }
 
@@ -493,26 +494,35 @@ function renderGlobalConfig() {
           </div>
           <div class="setting-card">
             <span class="material-symbols-outlined">precision_manufacturing</span>
-            <h3>编译器</h3>
+            <h3>${t('global_workers')}</h3>
             <p>发布任务按权重和繁忙状态选择编译器执行编译。</p>
-            <strong>${state.workers.length} 个编译器</strong>
+            <strong>${state.workers.length} ${t('global_workers')}</strong>
+          </div>
+          <div class="setting-card">
+            <span class="material-symbols-outlined">language</span>
+            <h3>${t('lang_setting')}</h3>
+            <p>${t('lang_hint')}</p>
+            <select onchange="setLang(this.value)" style="margin-top:8px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);font-size:13px;">
+              <option value="en" ${getLang()==="en"?"selected":""}>English</option>
+              <option value="zh" ${getLang()==="zh"?"selected":""}>中文</option>
+            </select>
           </div>
         </div>
       </section>
 
       <section class="card">
         <div class="section-head">
-          <div class="title-icon"><span class="material-symbols-outlined">manage_accounts</span><h2>用户管理</h2></div>
-          <button class="primary" onclick="editUser()"><span class="material-symbols-outlined">add</span>新增用户</button>
+          <div class="title-icon"><span class="material-symbols-outlined">manage_accounts</span><h2>${t('global_users')}</h2></div>
+          <button class="primary" onclick="editUser()"><span class="material-symbols-outlined">add</span>${t('btn_new_user')}</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>名称</th><th>角色</th><th>项目授权</th><th>备注</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>${t('worker_name')}</th><th>${t('user_role')}</th><th>${t('user_perms')}</th><th>备注</th><th class="right">操作</th></tr></thead><tbody>
           ${state.users.map(u => `<tr>
             <td class="mono">${esc(u.code)}</td>
             <td>${esc(u.name)}</td>
             <td><span class="badge ${u.role === "admin" ? "valid" : ""}">${esc(roleLabel(u.role))}</span></td>
             <td class="perm-cell">${esc(userPermSummary(u))}</td>
             <td>${esc(u.remark || "-")}</td>
-            <td class="actions"><button class="action-icon" onclick="editUser('${u.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('users','${u.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
+            <td class="actions"><button class="action-icon" onclick="editUser('${u.id}')" title="${t('btn_edit')}"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('users','${u.id}')" title="${t('btn_delete')}"><span class="material-symbols-outlined">delete</span></button></td>
           </tr>`).join("") || `<tr><td colspan="6" class="empty-cell">暂无用户</td></tr>`}
         </tbody></table></div>
       </section>
@@ -520,9 +530,9 @@ function renderGlobalConfig() {
       <section class="card">
         <div class="section-head">
           <div class="title-icon"><span class="material-symbols-outlined">precision_manufacturing</span><h2>编译器管理</h2></div>
-          <button class="primary" onclick="editWorker()"><span class="material-symbols-outlined">add</span>新增编译器</button>
+          <button class="primary" onclick="editWorker()"><span class="material-symbols-outlined">add</span>${t('btn_new_worker')}</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>名称</th><th>节点</th><th>工作目录</th><th>权重</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>名称</th><th>${t('worker_node')}</th><th>${t('node_work_dir')}</th><th>${t('worker_weight')}</th><th class="right">操作</th></tr></thead><tbody>
           ${state.workers.map(w => `<tr>
             <td class="mono">${esc(w.name)}</td>
             <td>${esc(nodeName(w.nodeId))}</td>
@@ -538,7 +548,7 @@ function renderGlobalConfig() {
           <div class="title-icon"><span class="material-symbols-outlined">key</span><h2>秘钥管理</h2></div>
           <button class="primary" onclick="editSecret()"><span class="material-symbols-outlined">add</span>新增秘钥</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>类型</th><th>用户</th><th>值</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>类型</th><th>${t('secret_username')}</th><th>值</th><th class="right">操作</th></tr></thead><tbody>
           ${state.secrets.map(s => `<tr>
             <td class="mono">${esc(s.code)}</td>
             <td><span class="badge">${esc(s.type)}</span></td>
@@ -551,16 +561,16 @@ function renderGlobalConfig() {
 
       <section class="card">
         <div class="section-head">
-          <div class="title-icon"><span class="material-symbols-outlined">notifications_active</span><h2>通知管理</h2></div>
+          <div class="title-icon"><span class="material-symbols-outlined">notifications_active</span><h2>${t('global_notifications')}</h2></div>
           <button class="primary" onclick="editNotification()"><span class="material-symbols-outlined">add</span>新增通知</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>通知类型</th><th>Hook 地址</th><th>邮件</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>${t('notify_type')}</th><th>${t('notify_hook_url')}</th><th>邮件</th><th class="right">操作</th></tr></thead><tbody>
           ${state.notifications.map(n => `<tr>
             <td class="mono">${esc(n.code)}</td>
             <td><span class="badge">${esc(notifyTypeLabel(n.type))}</span></td>
             <td class="mono">${esc(maskUrl(n.hookUrl))}</td>
             <td>${n.emailEnabled ? `<span class="badge valid">启用</span><br><small>${esc(n.emailTo)}</small>` : `<span class="badge">否</span>`}</td>
-            <td class="actions"><button class="action-icon" onclick="testNotification('${n.id}')" title="测试"><span class="material-symbols-outlined">science</span></button><button class="action-icon" onclick="editNotification('${n.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('notifications','${n.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
+            <td class="actions"><button class="action-icon" onclick="testNotification('${n.id}')" title="${t('btn_test')}"><span class="material-symbols-outlined">science</span></button><button class="action-icon" onclick="editNotification('${n.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('notifications','${n.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
           </tr>`).join("") || `<tr><td colspan="5" class="empty-cell">暂无通知</td></tr>`}
         </tbody></table></div>
       </section>
@@ -586,7 +596,7 @@ function renderGlobalConfig() {
 function renderRecords() {
   const records = [...state.records].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
   $("#content").innerHTML = records.length ? `
-    <div class="table-wrap"><table class="table"><thead><tr><th>项目</th><th>环境</th><th>版本</th><th>Ref</th><th>模式</th><th>状态</th><th>时间</th><th class="right">操作</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="table"><thead><tr><th>${t('nav_projects')}</th><th>${t('publish_env')}</th><th>版本</th><th>Ref</th><th>模式</th><th>状态</th><th>时间</th><th class="right">操作</th></tr></thead><tbody>
     ${records.map(r => `<tr>
       <td>${esc(r.projectName)}</td><td><span class="badge">${esc(r.env)}</span></td><td class="mono">${esc(r.version)}</td><td class="mono">${esc(r.ref || "-")}</td><td>${esc(r.mode)}</td>
       <td>${statusBadge(r.status)}</td><td>${fmt(r.startedAt)}</td>
@@ -615,7 +625,7 @@ function renderProjectDetail() {
     return;
   }
   $("#pageTitle").textContent = p.name;
-  $("#pageDesc").textContent = `状态：${projectDisplayStatus(p) || "未发布"}，上次编译时间：${fmt(projectDisplayTime(p))}`;
+  $("#pageDesc").textContent = `状态：${projectDisplayStatus(p) || t('unpublished')}，上次编译时间：${fmt(projectDisplayTime(p))}`;
   $("#primaryBtn").style.display = "none";
   $("#content").innerHTML = `
     <section class="detail-main compact" id="detailMain"></section>`;
@@ -645,14 +655,14 @@ function renderProjectStatus(project) {
             <p>最后发布：${fmt(projectDisplayTime(project))}（分支/Tag：${esc(project.git?.ref || "-")}，分组：${esc(project.group || "未分组")}）</p>
           </div>
           <div class="detail-actions">
-            ${canRun ? `<button class="primary publish-big" onclick="openPublish('${project.id}')">发布</button>` : ""}
+            ${canRun ? `<button class="primary publish-big" onclick="openPublish('${project.id}')">${t('btn_publish')}</button>` : ""}
             ${canEdit ? `<button class="small-btn" title="编辑" onclick="openProjectDetail('${project.id}', 'edit')"><span class="material-symbols-outlined">edit</span></button>` : ""}
-            <button class="small-btn" title="返回" onclick="backToList()"><span class="material-symbols-outlined">arrow_back</span></button>
+            <button class="small-btn" title="${t('btn_back')}" onclick="backToList()"><span class="material-symbols-outlined">arrow_back</span></button>
           </div>
         </section>
 
         <section class="pipeline-stepper-card">
-          <h3>发布流程</h3>
+          <h3>${t('detail_pipeline')}</h3>
           <div class="pipeline-stepper">
             ${["git", "build", "deploy", "message"].map(k => pipelineStep(k, activeStages?.[k])).join("")}
           </div>
@@ -660,7 +670,7 @@ function renderProjectStatus(project) {
 
         <section class="log-card">
           <div class="log-head">
-            <span><span class="material-symbols-outlined">terminal</span>发布日志</span>
+            <span><span class="material-symbols-outlined">terminal</span>${t('detail_log_all')}</span>
             <div>
               ${active ? `<button class="icon" onclick="showRecordLog('${active.id}')" title="查看日志"><span class="material-symbols-outlined">fullscreen</span></button>` : ""}
             </div>
@@ -671,7 +681,7 @@ function renderProjectStatus(project) {
       </div>
 
       <aside class="history-panel">
-        <div class="history-head"><h3>发布历史</h3></div>
+        <div class="history-head"><h3>${t('detail_history')}</h3></div>
         <div class="history-list">
           ${historyListByDate(records)}
         </div>
@@ -681,7 +691,7 @@ function renderProjectStatus(project) {
 }
 
 function pipelineStep(key, stage) {
-  const names = { git: "初始化", build: "编译", deploy: "发布", message: "通知" };
+  const names = { git: t('stage_init'), build: t('stage_build'), deploy: t('btn_publish'), message: "通知" };
   const status = stage?.status || "pending";
   const icon = { success: "check", failed: "close", stopped: "stop", skipped: "skip_next", running: "autorenew", pending: "flag" }[status] || "flag";
   return `<button class="pipeline-step ${status}" onclick="${stage ? `showRecordLog('${projectRecords(state.detailProjectId)[0]?.id || ""}')` : ""}">
@@ -703,7 +713,7 @@ function historyListByDate(records) {
       <div class="history-date-label">${esc(date)}</div>
       ${items.map(r => historyItem(r)).join("")}
     </div>`
-  ).join("") || `<div class="empty-cell">暂无记录</div>`;
+  ).join("") || `<div class="empty-cell">${t('detail_no_records')}</div>`;
 }
 
 function historyItem(record) {
@@ -721,11 +731,11 @@ function historyItem(record) {
       ${historyDuration(record)}
       <span class="hi-time">${time}</span>
     </button>
-    <button class="hi-menu-btn" onclick="toggleHistoryMenu('${menuId}', event)" title="操作"><span class="material-symbols-outlined">more_vert</span></button>
+    <button class="hi-menu-btn" onclick="toggleHistoryMenu('${menuId}', event)" title="${t('col_actions')}"><span class="material-symbols-outlined">more_vert</span></button>
     <div class="hi-menu" id="${menuId}">
       <button onclick="showRecordLog('${record.id}')"><span class="material-symbols-outlined">terminal</span>日志</button>
       ${canRedeploy ? `<button onclick="redeploy('${record.id}')"><span class="material-symbols-outlined">replay</span>重新部署</button>` : ""}
-      ${canDelete ? `<button class="danger" onclick="deleteRecord('${record.id}')"><span class="material-symbols-outlined">delete</span>删除</button>` : ""}
+      ${canDelete ? `<button class="danger" onclick="deleteRecord('${record.id}')"><span class="material-symbols-outlined">delete</span>${t('btn_delete')}</button>` : ""}
     </div>
   </div>`;
 }
@@ -738,7 +748,7 @@ function historyDuration(record) {
   const stages = stageSummary(record);
   const done = ["git", "build", "deploy", "message"].filter(k => ["success", "skipped"].includes(stages[k]?.status)).length;
   const percent = Math.max(12, done * 25);
-  return `<span class="hi-dur hi-progress" title="发布中" aria-label="发布中"><i style="width:${percent}%"></i></span>`;
+  return `<span class="hi-dur hi-progress" title="${t('status_running')}" aria-label=t('status_running')><i style="width:${percent}%"></i></span>`;
 }
 
 function toggleHistoryMenu(id, ev) {
@@ -818,20 +828,20 @@ function stageSummary(record) {
   const finalDone = success || failed || stopped;
   const canceled = stopped || logs.some(l => l.includes("用户终止发布任务"));
 
-  const gitStarted = logs.some(l => l.includes("克隆源码") || l.includes("更新源码") || l.includes("执行预处理命令") || l.includes("预处理命令") || l.includes("git clone") || l.includes("git fetch") || l.includes("远程执行") && l.includes("git "));
+  const gitStarted = logs.some(l => l.includes("克隆源码") || l.includes("更新源码") || l.includes("执行预处理命令") || l.includes(t('label_preprocess')) || l.includes("git clone") || l.includes("git fetch") || l.includes("远程执行") && l.includes("git "));
   const buildStarted = logs.some(l => l.includes("执行目标编译命令") || l.includes("BUILD SUCCESS"));
   const buildDone = logs.some(l => l.includes("同步远程构建产物") || l.includes("保存构建产物") || l.includes("BUILD SUCCESS"));
-  const deployStarted = logs.some(l => l.includes("发布到"));
+  const deployStarted = logs.some(l => l.includes(t('publish_to')));
   const deployDone = logs.some(l => l.includes("部署文件同步完成") || l.includes("部署成功") || (success && deployStarted));
   const messageSkipped = logs.some(l => l.includes("未配置消息通知"));
   const gitDone = buildStarted || buildDone || deployStarted || deployDone || success || logs.some(l => l.includes("远程切换版本") || l.includes("切换版本") || l.includes("git checkout") || l.includes("预处理完成"));
-  const messageStarted = messageSkipped || logs.some(l => l.includes("通知") || l.includes("消息")) || finalDone;
+  const messageStarted = messageSkipped || logs.some(l => l.includes("通知") || l.includes(t('stage_message'))) || finalDone;
 
   // Collect stage boundary timestamps (all time-of-day ms from midnight)
   const logStart = timeOf("mkdir") || timeOf("克隆源码") || timeOf("git fetch") || timeOf("远程执行");
   const buildStart = timeOf("执行目标编译命令") || timeOf("mvn ");
-  const deployStart = timeOf("发布到");
-  const messageStart = timeOf("发送") || timeOf("通知") || timeOf("消息");
+  const deployStart = timeOf(t('publish_to'));
+  const messageStart = timeOf(t('btn_send')) || timeOf("通知") || timeOf(t('stage_message'));
   // Last log line timestamp as time-of-day ms
   const lastLogTime = (() => {
     for (let i = logs.length - 1; i >= 0; i--) {
@@ -880,9 +890,9 @@ function stageSummary(record) {
     if (failedStage) statusOf[failedStage] = "failed";
   }
   return {
-    git: { label: "初始化", status: statusOf.git, time: findTime("git fetch") || findTime("切换版本") || findTime("预处理命令"), duration: gitDur },
-    build: { label: "编译", status: statusOf.build, time: findTime("执行目标编译命令") || findTime("mvn "), duration: buildDur },
-    deploy: { label: "部署", status: statusOf.deploy, time: findTime("发布到"), duration: deployDur },
+    git: { label: t('stage_init'), status: statusOf.git, time: findTime("git fetch") || findTime("切换版本") || findTime(t('label_preprocess')), duration: gitDur },
+    build: { label: t('stage_build'), status: statusOf.build, time: findTime("执行目标编译命令") || findTime("mvn "), duration: buildDur },
+    deploy: { label: t('stage_deploy'), status: statusOf.deploy, time: findTime("发布到"), duration: deployDur },
     message: { label: "消息", status: statusOf.message, time: record.endedAt ? fmt(record.endedAt) : "", duration: messageDur }
   };
 }
@@ -906,7 +916,7 @@ function pipelineIcon(status) {
 }
 
 function renderDetailPublish(project) {
-  $("#detailMain").innerHTML = `<div class="editor-section"><h2>发布</h2><p>选择环境和分支后开始发布。</p><button class="primary" onclick="openPublish('${project.id}')">发布项目</button></div>`;
+  $("#detailMain").innerHTML = `<div class="editor-section"><h2>${t('detail_publish')}</h2><p>${t('detail_publish_hint')}</p><button class="primary" onclick="openPublish('${project.id}')">${t('detail_btn_publish')}</button></div>`;
 }
 
 function startDetailPolling() {
@@ -980,14 +990,14 @@ function formData(form) {
 
 function editSecret(id = "") {
   const s = state.secrets.find(x => x.id === id) || { type: "git" };
-  openModal(id ? "编辑秘钥" : "新建秘钥", `
+  openModal(id ? "编辑秘钥" : t('btn_new_secret'), `
     <div class="form-grid">
       <div class="field"><label>编码</label><input name="code" value="${esc(s.code)}"></div>
       <div class="field"><label>类型</label><select name="type"><option>git</option><option>ssh</option><option>api</option><option>token</option></select></div>
       <div class="field"><label>用户</label><input name="username" value="${esc(s.username)}"></div>
-      <div class="field"><label>密码</label><input name="password" type="password" value="${esc(s.password)}"></div>
-      <div class="field full"><label>Token</label><input name="token" value="${esc(s.token)}"></div>
-      <div class="field full"><label>私钥</label><textarea name="privateKey">${esc(s.privateKey)}</textarea></div>
+      <div class="field"><label>${t('secret_password')}</label><input name="password" type="password" value="${esc(s.password)}"></div>
+      <div class="field full"><label>${t('secret_token')}</label><input name="token" value="${esc(s.token)}"></div>
+      <div class="field full"><label>${t('secret_private_key')}</label><textarea name="privateKey">${esc(s.privateKey)}</textarea></div>
       <div class="field full"><label>备注</label><input name="remark" value="${esc(s.remark)}"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
@@ -998,15 +1008,15 @@ function editSecret(id = "") {
 
 function editNode(id = "") {
   const n = state.nodes.find(x => x.id === id) || { type: "local", port: 22 };
-  openModal(id ? "编辑节点" : "新建节点", `
+  openModal(id ? "编辑节点" : t('btn_new_node'), `
     <div class="form-grid">
       <div class="field"><label>编码</label><input name="code" value="${esc(n.code)}"></div>
-      <div class="field"><label>类型</label><select name="type"><option value="local">本地目录</option><option value="ssh">SSH 远程</option></select></div>
+      <div class="field"><label>类型</label><select name="type"><option value="local">本地目录</option><option value="ssh">${t('node_ssh_remote')}</option></select></div>
       <div class="field"><label>Host</label><input name="host" value="${esc(n.host)}"></div>
-      <div class="field"><label>端口</label><input name="port" type="number" value="${esc(n.port || 22)}"></div>
+      <div class="field"><label>${t('node_port')}</label><input name="port" type="number" value="${esc(n.port || 22)}"></div>
       <div class="field"><label>用户</label><input name="user" value="${esc(n.user)}"></div>
       <div class="field"><label>秘钥</label><select name="secretId">${secretOptions(n.secretId)}</select></div>
-      <div class="field full"><label>基础目录</label><input name="baseDir" value="${esc(n.baseDir)}"></div>
+      <div class="field full"><label>${t('node_base_dir')}</label><input name="baseDir" value="${esc(n.baseDir)}"></div>
       <div class="field full"><label>备注</label><input name="remark" value="${esc(n.remark)}"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
@@ -1018,7 +1028,7 @@ function editNode(id = "") {
 
 function editWorker(id = "") {
   const w = state.workers.find(x => x.id === id) || { weight: 5 };
-  openModal(id ? "编辑编译器" : "新增编译器", `
+  openModal(id ? "编辑编译器" : t('btn_new_worker'), `
     <div class="form-grid">
       <div class="field"><label>名称</label><input name="name" value="${esc(w.name)}" placeholder="worker-1"></div>
       <div class="field"><label>节点</label><select name="nodeId">${nodeOptions(w.nodeId)}</select></div>
@@ -1037,10 +1047,10 @@ function editNotification(id = "") {
   openModal(id ? "编辑通知" : "新增通知", `
     <div class="form-grid">
       <div class="field"><label>编码</label><input name="code" value="${esc(n.code)}" placeholder="prod-wecom"></div>
-      <div class="field"><label>通知类型</label><select name="type"><option value="wecom">企业微信</option><option value="feishu">飞书</option></select></div>
+      <div class="field"><label>通知类型</label><select name="type"><option value="wecom">${t('notify_wecom')}</option><option value="feishu">${t('notify_feishu')}</option></select></div>
       <div class="field full"><label>Hook 地址</label><input name="hookUrl" value="${esc(n.hookUrl)}" placeholder="https://..."></div>
-      <div class="field"><label>是否邮件</label><select name="emailEnabled"><option value="false">否</option><option value="true">是</option></select></div>
-      <div class="field"><label>收件地址</label><input name="emailTo" value="${esc(n.emailTo)}" placeholder="a@company.com,b@company.com"></div>
+      <div class="field"><label>${t('notify_email')}</label><select name="emailEnabled"><option value="false">否</option><option value="true">是</option></select></div>
+      <div class="field"><label>${t('notify_email_addr')}</label><input name="emailTo" value="${esc(n.emailTo)}" placeholder="a@company.com,b@company.com"></div>
       <div class="field full"><label>备注</label><input name="remark" value="${esc(n.remark)}"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
@@ -1054,11 +1064,11 @@ function editNotification(id = "") {
 function editUser(id = "") {
   const u = state.users.find(x => x.id === id) || { role: "user", projectPerms: [] };
   const permByProject = new Map((u.projectPerms || []).map(p => [p.projectId, p]));
-  openModal(id ? "编辑用户" : "新增用户", `
+  openModal(id ? "编辑用户" : t('btn_new_user'), `
     <div class="form-grid user-form">
-      <div class="field"><label>用户编码</label><input name="code" value="${esc(u.code)}" placeholder="zhangsan"></div>
-      <div class="field"><label>用户名称</label><input name="name" value="${esc(u.name)}" placeholder="张三"></div>
-      <div class="field"><label>角色</label><select name="role"><option value="admin">管理员</option><option value="user">普通用户</option></select></div>
+      <div class="field"><label>${t('user_code')}</label><input name="code" value="${esc(u.code)}" placeholder="zhangsan"></div>
+      <div class="field"><label>${t('user_name')}</label><input name="name" value="${esc(u.name)}" placeholder="张三"></div>
+      <div class="field"><label>角色</label><select name="role"><option value="admin">${t('user_admin')}</option><option value="user">${t('user_normal')}</option></select></div>
       <div class="field"><label>密码</label><input name="password" type="password" value="" placeholder="${id ? "不修改请留空" : "新用户必填"}"></div>
       <div class="field full"><label>备注</label><input name="remark" value="${esc(u.remark)}"></div>
       <div class="field full">
@@ -1093,7 +1103,7 @@ function bindUserRoleToggle() {
   const sync = () => {
     const admin = role.value === "admin";
     $$(".perm-row input", $("#modalBody")).forEach(input => input.disabled = admin);
-    $("#roleHint").textContent = admin ? "管理员拥有全部项目权限，无需单独授权。" : "普通用户仅能操作已授权项目。";
+    $("#roleHint").textContent = admin ? t('user_admin_hint') : t('user_normal_hint');
   };
   role.addEventListener("change", sync);
   sync();
@@ -1102,7 +1112,7 @@ function bindUserRoleToggle() {
 async function testNotification(id) {
   try {
     const res = await api(`/api/notifications/${id}/test`, { method: "POST" });
-    alert(res.message || "通知测试成功");
+    alert(res.message || t('notify_success'));
   } catch (e) {
     alert(`通知测试失败：${e.message}`);
   }
@@ -1110,12 +1120,12 @@ async function testNotification(id) {
 
 function testSelectedNotification() {
   const id = $('[name="notify.notificationId"]')?.value;
-  if (!id) return alert("请先选择通知");
+  if (!id) return alert(t('notify_select_hint'));
   testNotification(id);
 }
 
 function editProject(id = "") {
-  if ((id && !canEditProject(id)) || (!id && !isAdmin())) return alert("没有项目修改权限");
+  if ((id && !canEditProject(id)) || (!id && !isAdmin())) return alert(t('no_permission'));
   state.editorProjectId = id;
   state.view = "project-editor";
   render();
@@ -1152,23 +1162,23 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
       </div>
 
       <section class="pipeline-panel">
-        <div class="pipeline-panel-head"><span class="material-symbols-outlined">source</span><h2>代码仓库</h2></div>
+        <div class="pipeline-panel-head"><span class="material-symbols-outlined">source</span><h2>${t('repo_title')}</h2></div>
         <div class="pipeline-repo-grid">
           <div class="repo-row repo-row-3">
-            <div class="field"><label>项目编号</label><input name="code" value="${esc(p.code)}" placeholder="留空自动生成"></div>
-            <div class="field"><label>项目名称</label><input name="name" value="${esc(p.name)}" placeholder="例如：订单服务"></div>
-            <div class="field"><label>项目分组</label><input name="group" list="projectGroupList" value="${esc(p.group)}" placeholder="例如：后端 / 前端 / ERP"><datalist id="projectGroupList">${projectGroups().map(g => `<option value="${esc(g)}"></option>`).join("")}</datalist></div>
+            <div class="field"><label>${t('label_project_code')}</label><input name="code" value="${esc(p.code)}" placeholder=t('hint_code')></div>
+            <div class="field"><label>${t('label_project_name')}</label><input name="name" value="${esc(p.name)}" placeholder=t('placeholder_project_name')></div>
+            <div class="field"><label>${t('label_project_group')}</label><input name="group" list="projectGroupList" value="${esc(p.group)}" placeholder="${t('placeholder_group')}"><datalist id="projectGroupList">${projectGroups().map(g => `<option value="${esc(g)}"></option>`).join("")}</datalist></div>
           </div>
         <div class="repo-row repo-row-3">
-            <div class="field"><label>Git 秘钥</label><select name="git.secretId">${secretOptions(p.git?.secretId)}</select></div>
+            <div class="field"><label>${t('label_git_secret')}</label><select name="git.secretId">${secretOptions(p.git?.secretId)}</select></div>
             
-            <div class="field"><label>输出路径</label><input name="build.artifactSource" value="${esc(p.build?.artifactSource || (p.environments || [])[0]?.artifacts?.[0]?.source || ".")}" placeholder="dist/ 或 target/*.jar"></div>
+            <div class="field"><label>${t('label_artifact_path')}</label><input name="build.artifactSource" value="${esc(p.build?.artifactSource || (p.environments || [])[0]?.artifacts?.[0]?.source || ".")}" placeholder="${t('placeholder_artifact')}"></div>
           </div>
           <div class="repo-row repo-row-2">
-            <div class="field"><label>Git 地址</label><div class="repo-url-row"><span class="material-symbols-outlined">link</span><input name="git.url" value="${esc(p.git?.url)}" placeholder="git@github.com:org/repo.git"><button type="button" class="action-icon" onclick="validateGitFromEditor(true)" title="测试连接"><span class="material-symbols-outlined">sync</span></button></div><small id="gitStatus" class="hint">支持 SSH 和 HTTPS 地址。</small></div>
+            <div class="field"><label>${t('label_git_url')}</label><div class="repo-url-row"><span class="material-symbols-outlined">link</span><input name="git.url" value="${esc(p.git?.url)}" placeholder="git@github.com:org/repo.git"><button type="button" class="action-icon" onclick="validateGitFromEditor(true)" title="${t('test_connection')}"><span class="material-symbols-outlined">sync</span></button></div><small id="gitStatus" class="hint">${t('hint_git')}</small></div>
           </div>
           <div class="repo-row repo-row-3">
-            <div class="field"><label>分支 / Tag</label>${refPicker({ id: "gitRefInput", optionsId: "gitRefOptions", name: "git.ref", value: p.git?.ref || "", refs: state.gitRefs })}</div>
+            <div class="field"><label>${t('label_branch_tag')}</label>${refPicker({ id: "gitRefInput", optionsId: "gitRefOptions", name: "git.ref", value: p.git?.ref || "", refs: state.gitRefs })}</div>
           </div>
         </div>
         <div class="repo-command">
@@ -1188,7 +1198,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
       <section class="pipeline-panel">
         <div class="pipeline-panel-head with-action">
           <div><span class="material-symbols-outlined">dns</span><h2>发布目标</h2></div>
-          <button type="button" onclick="addEnv()"><span class="material-symbols-outlined">add</span>新增目标</button>
+          <button type="button" onclick="addEnv()"><span class="material-symbols-outlined">add</span>${t('btn_new_target')}</button>
         </div>
         <div id="envRows" class="target-list">${(p.environments || []).map(envRow).join("")}</div>
       </section>
@@ -1199,25 +1209,25 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
           <div class="notify-list">
             <div class="notify-card active">
               <div><strong><span class="material-symbols-outlined">chat</span>发布通知</strong><small>从全局通知管理选择企业微信或飞书 Hook</small><select name="notify.notificationId">${notificationOptions(p.notify?.notificationId)}</select></div>
-              <button type="button" onclick="testSelectedNotification()">测试</button>
+              <button type="button" onclick="testSelectedNotification()">${t('btn_test')}</button>
             </div>
             <small class="hint">请先在全局配置的通知管理中维护通知；旧项目里的直接 Hook 配置仍兼容发送。</small>
           </div>
         </section>
 
         <section class="pipeline-panel">
-          <div class="pipeline-panel-head"><span class="material-symbols-outlined">tune</span><h2>高级设置</h2></div>
+          <div class="pipeline-panel-head"><span class="material-symbols-outlined">tune</span><h2>${t('build_advanced')}</h2></div>
           <div class="advanced-grid">
-            <div class="field"><label>版本保留数量</label><div class="inline-number"><input name="retention.keepReleases" type="number" min="1" value="${esc(p.retention?.keepReleases || 5)}"><span>个版本</span></div></div>
-            <div class="field"><label>发布模式</label><select name="build.publishMode"><option value="overwrite">覆盖发布</option><option value="clean">清理发布</option></select></div>
-            <div class="field"><label>编译超时时间</label><div class="inline-number"><input type="number" value="30" disabled><span>分钟</span></div><small class="hint">超过该时间后，可由操作人员终止发布流程。</small></div>
+            <div class="field"><label>${t('label_retention')}</label><div class="inline-number"><input name="retention.keepReleases" type="number" min="1" value="${esc(p.retention?.keepReleases || 5)}"><span>${t('versions')}</span></div></div>
+            <div class="field"><label>${t('publish_mode')}</label><select name="build.publishMode"><option value="overwrite">${t('publish_mode_overwrite')}</option><option value="clean">${t('publish_mode_clean')}</option></select></div>
+            <div class="field"><label>${t('label_compile_timeout')}</label><div class="inline-number"><input type="number" value="30" disabled><span>${t('minutes')}</span></div><small class="hint">${t('hint_retention')}</small></div>
             <div class="field full"><label>编译器</label>${workerPicker(p.build?.workerIds || [])}<small class="hint">指定编译器编译，默认根据繁忙状态分配；不选就是随机。</small></div>
           </div>
         </section>
       </div>
       ${id ? `<section class="editor-section danger-zone">
-        <h3>删除项目</h3>
-        <p>删除会移除项目和关联发布记录，请连续确认。</p>
+        <h3>${t('danger_delete_project')}</h3>
+        <p>${t('danger_delete_hint')}</p>
         <button type="button" class="danger" onclick="deleteProjectDeep('${id}', '${esc(p.name)}')">删除项目</button>
       </section>` : ""}
     </div>`;
@@ -1232,13 +1242,13 @@ function envRow(e = { artifacts: [{}] }) {
     <button type="button" class="target-delete" onclick="this.closest('.env').remove()" title="删除目标"><span class="material-symbols-outlined">delete</span></button>
     <div class="target-title"><span class="material-symbols-outlined">hard_drive</span><strong>发布目标 ${esc(e.name || "sit")}</strong></div>
     <div class="target-grid">
-      <div class="field"><label>环境</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
-      <div class="field"><label>目标节点</label>${targetNodePicker(selected)}</div>
-      <div class="field"><label>目标目录</label><input class="targetDir" value="${esc(e.artifacts?.[0]?.targetDir || "")}" placeholder="/var/www/app"></div>
-      <div class="field"><label>编译目标</label><div class="cross-build-row"><select class="envGoos"><option value="">OS</option><option value="linux" ${e.goos==="linux"?"selected":""}>Linux</option><option value="darwin" ${e.goos==="darwin"?"selected":""}>macOS</option><option value="windows" ${e.goos==="windows"?"selected":""}>Windows</option></select><select class="envGoarch"><option value="">架构</option><option value="amd64" ${e.goarch==="amd64"?"selected":""}>amd64</option><option value="arm64" ${e.goarch==="arm64"?"selected":""}>arm64</option><option value="386" ${e.goarch==="386"?"selected":""}>386</option></select></div><small class="hint">设置 GOOS/GOARCH，留空使用默认。</small></div>
+      <div class="field"><label>${t('label_target_env')}</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
+      <div class="field"><label>${t('label_target_node')}</label>${targetNodePicker(selected)}</div>
+      <div class="field"><label>${t('label_target_dir')}</label><input class="targetDir" value="${esc(e.artifacts?.[0]?.targetDir || "")}" placeholder=t('placeholder_target_dir')></div>
+      <div class="field"><label>${t('label_build_target')}</label><div class="cross-build-row"><select class="envGoos"><option value="">${t('select_os')}</option><option value="linux" ${e.goos==="linux"?"selected":""}>Linux</option><option value="darwin" ${e.goos==="darwin"?"selected":""}>macOS</option><option value="windows" ${e.goos==="windows"?"selected":""}>Windows</option></select><select class="envGoarch"><option value="">${t('select_arch')}</option><option value="amd64" ${e.goarch==="amd64"?"selected":""}>amd64</option><option value="arm64" ${e.goarch==="arm64"?"selected":""}>arm64</option><option value="386" ${e.goarch==="386"?"selected":""}>386</option></select></div><small class="hint">${t('hint_build_target')}</small></div>
     </div>
     ${commandBlock({
-      title: "编译命令",
+      title: t('label_build_command'),
       hint: "Shell 脚本 · 在worker节点运行",
       inputClass: "buildCmd",
       wrapperClass: "target-build-command",
@@ -1248,7 +1258,7 @@ function envRow(e = { artifacts: [{}] }) {
       scriptName: "build.sh"
     })}
     ${commandBlock({
-      title: "发布命令",
+      title: t('label_deploy_command'),
       hint: "发布到目标服务器后运行",
       inputClass: "deployCmd",
       wrapperClass: "target-deploy-command",
@@ -1264,16 +1274,16 @@ function targetNodePicker(selected = []) {
   if (!nodes.length) return `<div class="target-node-picker empty"><span class="hint">请先创建有效节点</span></div>`;
   return `<div class="target-node-picker" data-selected="${esc(selected.join(","))}">
     <div class="target-node-tags">${targetNodeTags(selected)}</div>
-    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>选择节点</button>
+    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>${t('select_node')}</button>
     <div class="target-node-dropdown">
-      <input class="target-node-filter" placeholder="过滤节点" autocomplete="off" oninput="filterTargetNodes(this)">
+      <input class="target-node-filter" placeholder=t('filter_nodes') autocomplete="off" oninput="filterTargetNodes(this)">
       <div class="target-node-options">${targetNodeOptions(selected)}</div>
     </div>
   </div>`;
 }
 
 function targetNodeTags(selected = []) {
-  if (!selected.length) return `<span class="target-node-empty">未选择节点</span>`;
+  if (!selected.length) return `<span class="target-node-empty">${t('all_nodes')}</span>`;
   return selected.map(id => {
     const node = state.nodes.find(n => n.id === id);
     const label = node ? `${node.code}${node.status !== "valid" ? " · 无效" : ""}` : id;
@@ -1340,7 +1350,7 @@ function filterTargetNodes(input) {
 }
 
 function workerPicker(selected = []) {
-  if (!state.workers.length) return `<div class="target-node-picker empty"><span class="hint">请先在全局配置创建 worker</span></div>`;
+  if (!state.workers.length) return `<div class="target-node-picker empty"><span class="hint">${t('worker_empty_hint')}</span></div>`;
   return `<div class="target-node-picker worker-picker" data-selected="${esc(selected.join(","))}">
     <div class="target-node-tags">${workerTags(selected)}</div>
     <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>选择</button>
@@ -1521,7 +1531,7 @@ async function validateGitFromEditor(manual) {
     return;
   }
   status.className = "hint";
-  status.textContent = "正在验证代码仓库并拉取分支/Tag...";
+  status.textContent = t('git_testing');
   try {
     const id = state.editorProjectId || "_draft";
     const refs = await api(`/api/projects/${id}/refs`, { method: "POST", body: JSON.stringify(editorProjectPayload()) });
@@ -1600,7 +1610,7 @@ function openTemplateMenu(button, ev) {
   templates.forEach(t => {
     const item = document.createElement("button");
     item.type = "button";
-    item.innerHTML = `<span>${esc(t.name)}</span>${t.builtin ? "<small>内置</small>" : "<small>自定义</small>"}`;
+    item.innerHTML = `<span>${esc(t.name)}</span>${t.builtin ? "<small>${t('tpl_builtin')}</small>" : "<small>${t('tpl_custom')}</small>"}`;
     item.addEventListener("click", () => {
       applyCommandTemplate(block, t.script);
       closeTemplateMenu();
@@ -1637,8 +1647,8 @@ function applyCommandTemplate(block, script) {
 function saveCommandTemplate(block, kind, reopenButton) {
   const input = commandInput(block);
   const script = input?.value.trim();
-  if (!script) return alert("当前命令为空，不能保存模板");
-  const name = prompt("模板名称");
+  if (!script) return alert(t('tpl_empty_hint'));
+  const name = prompt(t('tpl_name'));
   if (!name?.trim()) return;
   const items = customCommandTemplates().filter(t => !(t.kind === kind && t.name === name.trim()));
   items.push({ kind, name: name.trim(), script });
@@ -1650,14 +1660,14 @@ function saveCommandTemplate(block, kind, reopenButton) {
 async function deleteProjectDeep(id, name) {
   const a = prompt(`输入项目名称确认删除：${name}`);
   if (a !== name) return alert("项目名称不匹配，已取消");
-  const b = prompt("再次输入 DELETE 确认删除项目和发布记录");
+  const b = prompt(t('danger_confirm_hint'));
   if (b !== "DELETE") return alert("未确认，已取消");
   await removeItem("projects", id, false);
   backToProjects();
 }
 
 async function saveProject(id) {
-  if ((id && !canEditProject(id)) || (!id && !isAdmin())) return alert("没有项目修改权限");
+  if ((id && !canEditProject(id)) || (!id && !isAdmin())) return alert(t('no_permission'));
   await save("projects", id, editorProjectPayload());
 }
 
@@ -1692,23 +1702,23 @@ async function autoTestNode(id) {
 }
 
 async function removeItem(type, id, ask = true) {
-  if (ask && !confirm("确认删除？")) return;
+  if (ask && !confirm(t('btn_confirm_delete'))) return;
   await api(`/api/${type}/${id}`, { method: "DELETE" });
   await load();
 }
 
 function openPublish(id, baseRecord = null) {
-  if (!canRunProject(id)) return alert("没有项目运行权限");
+  if (!canRunProject(id)) return alert(t('no_run_permission'));
   const p = state.projects.find(x => x.id === id);
   const envOptions = (p.environments || []).map(e => `<option>${esc(e.name)}</option>`).join("");
   const refs = state.gitRefs.length ? state.gitRefs : [p.git?.ref].filter(Boolean);
-  $("#publishModeTag").textContent = baseRecord ? "重新部署历史版本" : "编译并发布";
+  $("#publishModeTag").textContent = baseRecord ? t('publish_redeploy') : t('publish_build');
   $("#publishBody").innerHTML = `
     <div class="publish-form-line">
       <div class="field"><label>项目</label><input value="${esc(p.name)}" disabled></div>
       <div class="field"><label>编译器</label>${workerPicker(p.build?.workerIds || [])}</div>
       <div class="field"><label>环境</label><select id="pubEnv">${envOptions}</select></div>
-      <div class="field ref-field"><label>分支/Tag</label>${refPicker({ id: "pubRef", optionsId: "pubRefOptions", value: baseRecord?.ref || p.git?.ref || "", refs, disabled: !!baseRecord, refresh: "refreshPublishRefs()" })}</div>
+      <div class="field ref-field"><label>${t('publish_ref')}</label>${refPicker({ id: "pubRef", optionsId: "pubRefOptions", value: baseRecord?.ref || p.git?.ref || "", refs, disabled: !!baseRecord, refresh: "refreshPublishRefs()" })}</div>
     </div>`;
   closeLogStream();
   activeLogRecord = null;
@@ -1718,7 +1728,7 @@ function openPublish(id, baseRecord = null) {
   $("#publishModal").dataset.activeRecordId = "";
   $("#stopPublish").style.display = "none";
   $("#startPublish").disabled = false;
-  $("#startPublish").textContent = "开始发布";
+  $("#startPublish").textContent = t('btn_start_publish');
   $("#publishModal").showModal();
   if (!baseRecord) loadPublishRefs(p);
 }
@@ -1747,7 +1757,7 @@ async function startPublish(ev) {
   ev.preventDefault();
   if ($("#startPublish").disabled) return;
   $("#startPublish").disabled = true;
-  $("#startPublish").textContent = "发布中...";
+  $("#startPublish").textContent = t('publish_publishing');
   const projectId = $("#publishModal").dataset.projectId;
   const recordId = $("#publishModal").dataset.recordId;
   try {
@@ -1765,14 +1775,14 @@ async function startPublish(ev) {
     streamLog(rec.id, { clear: false });
   } catch (e) {
     $("#startPublish").disabled = false;
-    $("#startPublish").textContent = "开始发布";
+    $("#startPublish").textContent = t('btn_start_publish');
     throw e;
   }
 }
 
 async function stopCurrentPublish() {
   const id = $("#publishModal").dataset.activeRecordId;
-  if (!id || !confirm("确认终止当前发布任务？")) return;
+  if (!id || !confirm(t('stop_confirm'))) return;
   $("#stopPublish").disabled = true;
   await api(`/api/publish/${id}/stop`, { method: "POST" });
   appendLiveLog(`[${new Date().toLocaleTimeString("zh-CN", { hour12: false })}] 已发送终止发布请求`);
@@ -1781,7 +1791,7 @@ async function stopCurrentPublish() {
 function publishLogHeader(record, lines) {
   return `<div class="toolbar log-toolbar">
     <span class="badge">${esc(record.projectName)} · ${esc(record.env)} · ${esc(record.version)}${record.workerName ? ` · <span class="worker-badge"><span class="material-symbols-outlined">precision_manufacturing</span>${esc(record.workerName)}</span>` : ""}</span>
-    <span class="hint">仅显示最近日志，运行中可强制终止。</span>
+    <span class="hint">${t('publish_log_hint')}</span>
   </div>
   <div id="logProgress">${renderLogProgress(record, lines)}</div>`;
 }
@@ -1806,7 +1816,7 @@ function renderLogProgress(record, lines = []) {
 }
 
 function progressStage(key, stage = {}) {
-  const names = { git: "初始化", build: "编译", deploy: "部署", message: "消息" };
+  const names = { git: "初始化", build: "编译", deploy: t('stage_deploy'), message: "消息" };
   const status = stage.status || "pending";
   const icon = { success: "✅", failed: "❌", stopped: "⏹", running: "⏳", skipped: "⏭", pending: "○" }[status] || "○";
   return `<div class="progress-stage ${status}"><b>${icon}</b><strong>${names[key]}</strong><span>${stageDurationText(stage)}</span></div>`;
@@ -1905,7 +1915,7 @@ function scheduleLogReconnect(id) {
 
 function redeploy(recordId) {
   const r = state.records.find(x => x.id === recordId);
-  if (!canRunProject(r.projectId)) return alert("没有项目运行权限");
+  if (!canRunProject(r.projectId)) return alert(t('no_run_permission'));
   openPublish(r.projectId, r);
   $("#pubEnv").value = r.env;
 }
@@ -1917,12 +1927,12 @@ function showRecordLog(id) {
   const lines = r.log || [];
   const tail = lines.slice(-LOG_TAIL);
   const stale = isStaleRunningRecord(r);
-  const modeTag = r.mode === "redeploy" ? "重新部署历史版本" : "编译并发布";
+  const modeTag = r.mode === "redeploy" ? t('publish_redeploy') : t('publish_build');
   $("#publishModeTag").textContent = modeTag;
-  const extraHint = `仅显示最后 ${Math.min(lines.length, LOG_TAIL)} / ${lines.length} 行，最多保留 ${LOG_LIMIT} 行。${stale ? "检测到可能僵死的运行任务，已停止自动实时连接。" : ""}`;
+  const extraHint = `仅显示最后 ${Math.min(lines.length, LOG_TAIL)} / ${lines.length} 行，最多保留 ${LOG_LIMIT} 行。${stale ? t('stale_task_hint') : ""}`;
   const canRedeploy = canRunProject(r.projectId) && r.status !== "running";
   const headerHtml = publishLogHeader(r, tail)
-    .replace("仅显示最近日志，运行中可强制终止。", extraHint)
+    .replace(t('publish_log_hint'), extraHint)
     + `<div class="toolbar log-detail-actions">
         ${canRedeploy ? `<button type="button" class="primary" onclick="redeploy('${r.id}')"><span class="material-symbols-outlined">replay</span>重新部署此版本</button>` : ""}
         ${canEditProject(r.projectId) && r.status !== "running" ? `<button type="button" class="danger" onclick="deleteRecord('${r.id}')"><span class="material-symbols-outlined">delete</span>删除此记录</button>` : ""}
@@ -1955,10 +1965,10 @@ function showProjectLogs(projectId) {
 function openConsole(nodeId) {
   const node = state.nodes.find(n => n.id === nodeId);
   if (!node) return;
-  if (node.status !== "valid") return alert("节点状态无效，请先测试连接");
+  if (node.status !== "valid") return alert(t('node_invalid_hint'));
   const modal = $("#consoleModal");
-  $("#consoleNodeName").textContent = `控制台: ${node.code} (${node.type === "ssh" ? node.host : node.baseDir || "本地"})`;
-  $("#consoleStatus").textContent = "连接中";
+  $("#consoleNodeName").textContent = `控制台: ${node.code} (${node.type === "ssh" ? node.host : node.baseDir || t('node_local')})`;
+  $("#consoleStatus").textContent = t('node_connecting');
   $("#consoleStatus").className = "badge running";
   modal.showModal();
   initConsoleTerminal(nodeId);
@@ -2006,7 +2016,7 @@ function initConsoleTerminal(nodeId) {
   consoleSocket = ws;
 
   ws.onopen = () => {
-    $("#consoleStatus").textContent = "已连接";
+    $("#consoleStatus").textContent = t('node_connected');
     $("#consoleStatus").className = "badge success";
     sendConsoleResize();
   };
@@ -2020,14 +2030,14 @@ function initConsoleTerminal(nodeId) {
   };
 
   ws.onclose = () => {
-    $("#consoleStatus").textContent = "已断开";
+    $("#consoleStatus").textContent = t('node_disconnected');
     $("#consoleStatus").className = "badge";
     term.write("\r\n\x1b[33m[连接已断开]\x1b[0m\r\n");
     consoleSocket = null;
   };
 
   ws.onerror = () => {
-    $("#consoleStatus").textContent = "连接错误";
+    $("#consoleStatus").textContent = t('node_conn_error');
     $("#consoleStatus").className = "badge failed";
   };
 
@@ -2076,10 +2086,10 @@ function checkRecordChanges(oldRecords, newRecords) {
     const prev = oldMap[r.id];
     if (prev === "running" && r.status !== "running") {
       const emoji = r.status === "success" ? "✅" : r.status === "failed" ? "❌" : "⏹";
-      const label = r.status === "success" ? "发布成功" : r.status === "failed" ? "发布失败" : "已终止";
+      const label = r.status === "success" ? t('publish_success') : r.status === "failed" ? t('publish_failed') : t('status_stopped');
       const msg = `${emoji} ${r.projectName || ""} → ${r.env || ""} ${label} (${r.version || ""})`;
       unreadNotifs.push({ id: r.id + "_" + Date.now(), recordId: r.id, projectId: r.projectId, text: msg, time: new Date().toISOString(), status: r.status });
-      pushBrowserNotification("轻发布", msg, r);
+      pushBrowserNotification(t('app_name'), msg, r);
     }
   });
   updateNotifBadge();
@@ -2129,7 +2139,7 @@ function renderNotifDropdown() {
     dd.innerHTML = `<div class="notif-empty">暂无新消息</div>`;
     return;
   }
-  dd.innerHTML = `<div class="notif-head"><strong>消息通知</strong><button onclick="clearAllNotifs()">全部已读</button></div>` +
+  dd.innerHTML = `<div class="notif-head"><strong>${t('notify_title')}</strong><button onclick="clearAllNotifs()">全部已读</button></div>` +
     unreadNotifs.map(n => `<div class="notif-item ${n.status}" onclick="gotoNotifRecord('${n.recordId}', '${n.projectId}')">
       <span>${esc(n.text)}</span>
       <small>${new Date(n.time).toLocaleTimeString("zh-CN", { hour12: false })}</small>

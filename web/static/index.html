@@ -16,14 +16,14 @@
       <div class="brand login-brand">
         <span class="brand-mark">轻</span>
         <div>
-          <strong>轻发布</strong>
-          <small>项目发布系统</small>
+          <strong data-i18n="app_name">轻发布</strong>
+          <small data-i18n="app_subtitle">项目发布系统</small>
         </div>
       </div>
-      <h1>登录</h1>
-      <div class="field"><label>账号</label><input id="loginCode" autocomplete="username" placeholder="admin"></div>
-      <div class="field"><label>密码</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码"></div>
-      <button class="primary" type="submit">登录</button>
+      <h1 data-i18n="login_title">登录</h1>
+      <div class="field"><label data-i18n="login_account">账号</label><input id="loginCode" autocomplete="username" placeholder="admin"></div>
+      <div class="field"><label data-i18n="login_password">密码</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" data-i18n-placeholder="login_placeholder_pwd"></div>
+      <button class="primary" type="submit" data-i18n="login_btn">登录</button>
       <p id="loginError" class="error-text"></p>
       <small class="hint">首次启动默认账号：admin / 123456，请登录后修改密码。</small>
     </form>
@@ -37,7 +37,7 @@
         </button>
         <label class="search-box">
           <span class="material-symbols-outlined">search</span>
-          <input id="globalSearch" placeholder="搜索项目、编号、分组..." autocomplete="off">
+          <input id="globalSearch" placeholder="搜索项目、编号、分组..." data-i18n-placeholder="search_placeholder" autocomplete="off">
         </label>
       </div>
       <div class="topbar-icons">
@@ -52,18 +52,18 @@
     </header>
     <section class="page-head">
       <div>
-        <h1 id="pageTitle">项目</h1>
-        <p id="pageDesc">管理项目配置、发布环境、版本回退。</p>
+        <h1 id="pageTitle" data-i18n="nav_projects">项目</h1>
+        <p id="pageDesc" data-i18n="page_desc_projects">管理项目配置、发布环境、版本回退。</p>
       </div>
-      <button id="primaryBtn" class="primary">新建项目</button>
+      <button id="primaryBtn" class="primary" data-i18n="btn_new_project">新建项目</button>
     </section>
     <section id="content" class="canvas"></section>
   </main>
 
   <footer class="app-footer">
-    <span>轻发布 CodeDeploy</span>
+    <span data-i18n="app_name">轻发布 CodeDeploy</span>
     <span class="footer-sep">·</span>
-    <span>轻量级自动化编译发布平台</span>
+    <span data-i18n="app_subtitle">轻量级自动化编译发布平台</span>
     <span class="footer-sep">·</span>
     <span>v1.0.0</span>
     <span class="footer-sep">·</span>
@@ -73,7 +73,7 @@
   <dialog id="modal">
     <form method="dialog" class="modal">
       <div class="modal-head">
-        <h2 id="modalTitle">编辑</h2>
+        <h2 id="modalTitle" data-i18n="modal_title">编辑</h2>
         <button class="icon" value="cancel" aria-label="关闭">×</button>
       </div>
       <div id="modalBody"></div>
@@ -88,7 +88,7 @@
     <form method="dialog" class="modal publish-workspace">
       <div class="modal-head">
         <div class="publish-title">
-          <h2>项目发布</h2>
+          <h2 data-i18n="publish_title">项目发布</h2>
           <span id="publishModeTag" class="badge">编译并发布</span>
         </div>
         <button class="icon" value="cancel" aria-label="关闭">×</button>
@@ -108,7 +108,7 @@
       <div class="console-head">
         <div class="console-title">
           <span class="material-symbols-outlined">terminal</span>
-          <strong id="consoleNodeName">节点控制台</strong>
+          <strong id="consoleNodeName" data-i18n="node_console">节点控制台</strong>
           <span id="consoleStatus" class="badge">连接中</span>
         </div>
         <button class="icon" onclick="closeConsole()" aria-label="关闭"><span class="material-symbols-outlined">close</span></button>
@@ -118,6 +118,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="/i18n.js?v=20260601b"></script>
   <script src="/app.js?v=20260601b-worker-management"></script>
 </body>
 </html>
