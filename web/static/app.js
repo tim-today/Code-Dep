@@ -1680,6 +1680,7 @@ async function save(type, id, data) {
       state.view = "projects";
       state.editorProjectId = "";
     }
+    syncRoute();
   }
   await load();
   if (type === "nodes") {

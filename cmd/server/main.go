@@ -2142,24 +2142,53 @@ func wrapBuildEnv(env EnvConfig, script string) string {
 	if len(parts) == 0 {
 		return script
 	}
-	return "export " + strings.Join(parts, " ") + " && " + script
+	prefix := strings.Join(parts, " ")
+	commands := shellCommands(script)
+	for i, command := range commands {
+		commands[i] = prefix + " " + command
+	}
+	return strings.Join(commands, "\n")
 }
 
 func runShell(ctx context.Context, script, dir string, logLine func(string, ...any)) error {
-	logLine("执行命令: %s", script)
-	return runCommand(ctx, dir, logLine, "sh", "-lc", script)
+	commands := shellCommands(script)
+	for i, command := range commands {
+		logLine("执行命令 [%d/%d]: %s", i+1, len(commands), command)
+		if err := runCommand(ctx, dir, logLine, "sh", "-lc", command); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runShellRemote(ctx context.Context, node Node, secret Secret, script, dir string, logLine func(string, ...any)) error {
-	if dir != "" {
-		script = "cd " + shQuote(dir) + " && " + script
+	commands := shellCommands(script)
+	for i, command := range commands {
+		if dir != "" {
+			command = "cd " + shQuote(dir) + " && " + command
+		}
+		logLine("远程执行 %s [%d/%d]: %s", node.Code, i+1, len(commands), command)
+		if err := runSSHCommand(ctx, node, secret, command, logLine); err != nil {
+			return err
+		}
 	}
-	logLine("远程执行 %s: %s", node.Code, script)
-	return runSSHCommand(ctx, node, secret, script, logLine)
+	return nil
 }
 
 func remoteMkdir(ctx context.Context, node Node, secret Secret, dir string, logLine func(string, ...any)) error {
 	return runShellRemote(ctx, node, secret, "mkdir -p "+shQuote(dir), "", logLine)
+}
+
+func shellCommands(script string) []string {
+	var commands []string
+	for _, line := range strings.Split(strings.ReplaceAll(script, "\r\n", "\n"), "\n") {
+		command := strings.TrimSpace(line)
+		if command == "" || strings.HasPrefix(command, "#") {
+			continue
+		}
+		commands = append(commands, command)
+	}
+	return commands
 }
 
 func runCommand(ctx context.Context, dir string, logLine func(string, ...any), name string, args ...string) error {
