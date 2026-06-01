@@ -18,7 +18,7 @@ Lightweight automated build & deploy system with multi-environment support, vers
 - **Notifications**: WeCom and Feishu Webhook notifications
 - **Node Console**: WebSocket interactive terminal for remote command execution
 - **User Permissions**: Admin/regular users with project-level run/edit authorization
-- **i18n**: English and Chinese UI with browser auto-detection
+- **i18n**: Simplified Chinese, English, and Traditional Chinese UI with a universal `🌐` language selector
 
 ## Quick Start
 
@@ -51,6 +51,8 @@ PORT=9000 ./server
 ```
 
 Default admin: `admin` / `123456`. Change password after first login.
+
+Open `http://localhost:8080` by default. The login page defaults to Simplified Chinese; use the `🌐` selector to switch languages.
 
 ### Docker
 
