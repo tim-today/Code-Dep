@@ -1131,16 +1131,8 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
 }
 .target-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-}
-.cross-build-row {
-  display: flex;
-  gap: 8px;
-}
-.cross-build-row select {
-  flex: 1;
-  min-width: 0;
 }
 .target-node-list {
   min-height: 40px;

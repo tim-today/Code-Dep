@@ -1237,7 +1237,7 @@ function envRow(e = { artifacts: [{}] }) {
       <div class="field"><label>${t('label_target_env')}</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
       <div class="field"><label>${t('label_target_node')}</label>${targetNodePicker(selected)}</div>
       <div class="field"><label>${t('label_target_dir')}</label><input class="targetDir" value="${esc(e.artifacts?.[0]?.targetDir || "")}" placeholder=t('placeholder_target_dir')></div>
-      <div class="field"><label>${t('label_build_target')}</label><div class="cross-build-row"><select class="envGoos"><option value="">${t('select_os')}</option><option value="linux" ${e.goos==="linux"?"selected":""}>Linux</option><option value="darwin" ${e.goos==="darwin"?"selected":""}>macOS</option><option value="windows" ${e.goos==="windows"?"selected":""}>Windows</option></select><select class="envGoarch"><option value="">${t('select_arch')}</option><option value="amd64" ${e.goarch==="amd64"?"selected":""}>amd64</option><option value="arm64" ${e.goarch==="arm64"?"selected":""}>arm64</option><option value="386" ${e.goarch==="386"?"selected":""}>386</option></select></div><small class="hint">${t('hint_build_target')}</small></div>
+
     </div>
     ${commandBlock({
       title: t('label_build_command'),
@@ -1502,8 +1502,6 @@ function editorProjectPayload() {
 function editorEnvs(root = $("#projectEditor")) {
   return $$(".env", root).map(row => ({
     name: $(".envName", row).value.trim(),
-    goos: $(".envGoos", row)?.value || "",
-    goarch: $(".envGoarch", row)?.value || "",
     compileDeploy: $(".compileDeploy", row)?.checked || false,
     buildCommand: $(".compileDeploy", row)?.checked ? ($(".buildCmd", row)?.value || "") : "",
     deployCommand: $(".target-deploy-command .command-toggle", row)?.checked ? ($(".deployCmd", row)?.value || "") : "",
