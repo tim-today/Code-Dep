@@ -180,19 +180,22 @@ type RetentionConfig struct {
 }
 
 type Record struct {
-	ID          string     `json:"id"`
-	ProjectID   string     `json:"projectId"`
-	ProjectName string     `json:"projectName"`
-	Env         string     `json:"env"`
-	Ref         string     `json:"ref"`
-	Version     string     `json:"version"`
-	Status      string     `json:"status"`
-	Mode        string     `json:"mode"`
-	WorkerID    string     `json:"workerId"`
-	WorkerName  string     `json:"workerName"`
-	Log         []string   `json:"log"`
-	StartedAt   time.Time  `json:"startedAt"`
-	EndedAt     *time.Time `json:"endedAt"`
+	ID            string     `json:"id"`
+	ProjectID     string     `json:"projectId"`
+	ProjectName   string     `json:"projectName"`
+	Env           string     `json:"env"`
+	Ref           string     `json:"ref"`
+	Version       string     `json:"version"`
+	Status        string     `json:"status"`
+	Mode          string     `json:"mode"`
+	WorkerID      string     `json:"workerId"`
+	WorkerName    string     `json:"workerName"`
+	InitiatorID   string     `json:"initiatorId"`
+	InitiatorCode string     `json:"initiatorCode"`
+	InitiatorName string     `json:"initiatorName"`
+	Log           []string   `json:"log"`
+	StartedAt     time.Time  `json:"startedAt"`
+	EndedAt       *time.Time `json:"endedAt"`
 }
 
 type Server struct {
@@ -1523,6 +1526,7 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 	if !s.requireProjectPerm(w, r, req.ProjectID, "run") {
 		return
 	}
+	initiator, _ := s.currentUser(r)
 	project, env, baseRecord, err := s.preparePublish(req)
 	if err != nil {
 		fail(w, 400, err.Error())
@@ -1547,6 +1551,11 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 		Status:      "running",
 		Mode:        req.Mode,
 		StartedAt:   time.Now(),
+	}
+	if initiator.ID != "" {
+		record.InitiatorID = initiator.ID
+		record.InitiatorCode = initiator.Code
+		record.InitiatorName = initiator.Name
 	}
 	if worker.ID != "" {
 		record.WorkerID = worker.ID
@@ -1766,7 +1775,7 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 		s.store.saveRecordMeta(record.ProjectID)
 		s.store.mu.Unlock()
 		s.jobs.publish(record.ID, fmt.Sprintf("__DONE__:%s", status))
-		go s.sendNotify(project, env, record, status)
+		go s.sendNotify(project, env, record, status, ended)
 	}
 
 	defer func() {
@@ -1899,13 +1908,7 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 		finish("failed")
 		return
 	}
-	if strings.TrimSpace(env.DeployCommand) != "" {
-		if err := runShell(ctx, env.DeployCommand, releaseDir, logLine); err != nil {
-			logLine("发布命令失败: %v", err)
-			finish("failed")
-			return
-		}
-	} else {
+	if strings.TrimSpace(env.DeployCommand) == "" {
 		logLine("未配置发布命令，部署文件同步完成即视为部署成功")
 	}
 	cleanupReleases(project, logLine)
@@ -2008,6 +2011,8 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 	if publishMode != "clean" {
 		publishMode = "overwrite"
 	}
+	deployCommand := strings.TrimSpace(env.DeployCommand)
+	commandTargets := map[string]bool{}
 	for _, artifact := range env.Artifacts {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -2043,6 +2048,14 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 				if err := uploadLocalPath(ctx, node, secret, source, artifact.TargetDir, logLine); err != nil {
 					return err
 				}
+				key := node.ID + "|" + artifact.TargetDir
+				if deployCommand != "" && !commandTargets[key] {
+					commandTargets[key] = true
+					logLine("在远程目标目录执行发布命令: %s -> %s", node.Code, artifact.TargetDir)
+					if err := runShellRemote(ctx, node, secret, deployCommand, artifact.TargetDir, logLine); err != nil {
+						return fmt.Errorf("远程发布命令失败: %w", err)
+					}
+				}
 				continue
 			}
 			targetDir := artifact.TargetDir
@@ -2061,6 +2074,14 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 			}
 			if err := copyArtifactContent(source, targetDir); err != nil {
 				return err
+			}
+			key := node.ID + "|" + targetDir
+			if deployCommand != "" && !commandTargets[key] {
+				commandTargets[key] = true
+				logLine("在本地目标目录执行发布命令: %s -> %s", node.Code, targetDir)
+				if err := runShell(ctx, deployCommand, targetDir, logLine); err != nil {
+					return fmt.Errorf("本地发布命令失败: %w", err)
+				}
 			}
 		}
 	}
@@ -2838,8 +2859,8 @@ func cleanupReleases(project Project, logLine func(string, ...any)) {
 	}
 }
 
-func (s *Server) sendNotify(project Project, env EnvConfig, record Record, status string) {
-	text := fmt.Sprintf("项目 %s 发布到 %s：%s，版本 %s", project.Name, env.Name, status, record.Version)
+func (s *Server) sendNotify(project Project, env EnvConfig, record Record, status string, ended time.Time) {
+	text := buildNotificationText(project, env, record, status, ended)
 	if project.Notify.NotificationID != "" {
 		if item, ok := findNotification(s.store, project.Notify.NotificationID); ok {
 			_ = postNotification(item, text)
@@ -2855,6 +2876,100 @@ func (s *Server) sendNotify(project Project, env EnvConfig, record Record, statu
 			_ = postNotification(item, text)
 		}
 	}
+}
+
+func buildNotificationText(project Project, env EnvConfig, record Record, status string, ended time.Time) string {
+	started := record.StartedAt
+	if started.IsZero() {
+		started = ended
+	}
+	projectCode := valueOr(project.Code, "-")
+	ref := valueOr(record.Ref, "-")
+	worker := valueOr(record.WorkerName, "-")
+	if record.Mode == "redeploy" && record.WorkerName == "" {
+		worker = "重新部署（无需编译）"
+	}
+	initiator := record.InitiatorName
+	if initiator == "" {
+		initiator = record.InitiatorCode
+	} else if record.InitiatorCode != "" {
+		initiator = fmt.Sprintf("%s（%s）", initiator, record.InitiatorCode)
+	}
+	initiator = valueOr(initiator, "-")
+	mode := map[string]string{"build": "编译并发布", "redeploy": "重新部署"}[record.Mode]
+	if mode == "" {
+		mode = valueOr(record.Mode, "-")
+	}
+	titleIcon := map[string]string{"success": "✅", "failed": "❌", "stopped": "⏹"}[status]
+	if titleIcon == "" {
+		titleIcon = "ℹ️"
+	}
+	return strings.Join([]string{
+		fmt.Sprintf("%s 轻发布通知：%s", titleIcon, notifyStatusLabel(status)),
+		"",
+		"【项目信息】",
+		fmt.Sprintf("项目：%s（%s）", valueOr(project.Name, record.ProjectName), projectCode),
+		fmt.Sprintf("环境：%s", valueOr(env.Name, record.Env)),
+		fmt.Sprintf("版本：%s", valueOr(record.Version, "-")),
+		fmt.Sprintf("模式：%s", mode),
+		"",
+		"【代码与执行】",
+		fmt.Sprintf("分支/Tag：%s", ref),
+		fmt.Sprintf("编译器：%s", worker),
+		fmt.Sprintf("发起人：%s", initiator),
+		"",
+		"【时间】",
+		fmt.Sprintf("开始时间：%s", formatNotifyTime(started)),
+		fmt.Sprintf("完成时间：%s", formatNotifyTime(ended)),
+		fmt.Sprintf("耗费时间：%s", formatNotifyDuration(ended.Sub(started))),
+		fmt.Sprintf("时间戳：%s", ended.Format(time.RFC3339)),
+	}, "\n")
+}
+
+func notifyStatusLabel(status string) string {
+	switch status {
+	case "success":
+		return "发布成功"
+	case "failed":
+		return "发布失败"
+	case "stopped":
+		return "发布已终止"
+	case "running":
+		return "发布中"
+	default:
+		return valueOr(status, "未知状态")
+	}
+}
+
+func formatNotifyTime(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.Format("2006-01-02 15:04:05")
+}
+
+func formatNotifyDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	seconds := int(d.Round(time.Second).Seconds())
+	hours := seconds / 3600
+	minutes := seconds % 3600 / 60
+	secs := seconds % 60
+	if hours > 0 {
+		return fmt.Sprintf("%d小时%d分%d秒", hours, minutes, secs)
+	}
+	if minutes > 0 {
+		return fmt.Sprintf("%d分%d秒", minutes, secs)
+	}
+	return fmt.Sprintf("%d秒", secs)
+}
+
+func valueOr(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 func hasNotification(project Project) bool {
