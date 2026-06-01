@@ -25,7 +25,8 @@
       <div class="field"><label data-i18n="login_password">密码</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" data-i18n-placeholder="login_placeholder_pwd"></div>
       <button class="primary" type="submit" data-i18n="login_btn">登录</button>
       <p id="loginError" class="error-text"></p>
-      <small class="hint">首次启动默认账号：admin / 123456，请登录后修改密码。</small>
+      <small class="hint" data-i18n="login_hint">首次启动默认账号：admin / 123456，请登录后修改密码。</small>
+      <div style="text-align:center;margin-top:12px;"><button type="button" id="langBtnLogin" class="lang-btn" onclick="setLang(getLang()==='zh'?'en':'zh')" title="Language / 语言">EN</button></div>
     </form>
   </section>
   <main>

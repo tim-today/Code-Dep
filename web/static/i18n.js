@@ -874,6 +874,10 @@ const I18N = {
   "node_console_title": {
     "zh": "节点控制台",
     "en": "Node Console"
+  },
+  "login_hint": {
+    "zh": "首次启动默认账号：admin / 123456，请登录后修改密码。",
+    "en": "Default account: admin / 123456. Change password after login."
   }
 };
 
@@ -907,4 +911,6 @@ function translatePage() {
   });
   const langBtn = document.getElementById('langBtn');
   if (langBtn) langBtn.textContent = _lang === 'zh' ? 'EN' : '中文';
+  const langBtnLogin = document.getElementById('langBtnLogin');
+  if (langBtnLogin) langBtnLogin.textContent = _lang === 'zh' ? 'EN' : '中文';
 }
