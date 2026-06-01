@@ -892,7 +892,11 @@ function t(key) {
 function setLang(lang) {
   _lang = lang;
   localStorage.setItem('lang', lang);
-  render();
+  if (typeof state !== 'undefined' && state.currentUser) {
+    render();
+  } else {
+    translatePage();
+  }
 }
 
 function getLang() { return _lang; }
