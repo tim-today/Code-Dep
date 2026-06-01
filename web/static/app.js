@@ -710,8 +710,8 @@ function historyListByDate(records) {
 
 function historyItem(record) {
   const emoji = record.status === "success" ? "✅" : record.status === "failed" ? "❌" : record.status === "stopped" ? "⏹" : "⏳";
-  const t = record.startedAt ? new Date(record.startedAt) : null;
-  const time = t ? t.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--";
+  const tDate = record.startedAt ? new Date(record.startedAt) : null;
+  const time = tDate ? tDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--";
   const canDelete = canEditProject(record.projectId) && record.status !== "running";
   const canRedeploy = canRunProject(record.projectId) && record.status !== "running";
   const menuId = `hm_${record.id}`;
