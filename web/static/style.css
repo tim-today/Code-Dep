@@ -174,10 +174,32 @@ main {
 }
 .topbar-link:hover { background: var(--surface-mid); color: var(--ink); }
 .topbar-link .material-symbols-outlined { font-size: 18px; }
-.lang-select {
-  padding: 4px 8px;
+.language-picker {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.language-picker:hover { border-color: var(--primary); }
+.language-picker:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.12); }
+.language-picker span {
+  font-size: 15px;
+  line-height: 1;
+}
+.login-language {
+  justify-self: center;
+  margin-top: 2px;
+}
+.lang-select {
+  max-width: 136px;
+  padding: 0 2px;
+  border: 1px solid var(--line);
+  border-radius: 0;
   background: var(--surface);
   color: var(--ink);
   font-size: 12px;
@@ -185,10 +207,8 @@ main {
   cursor: pointer;
   line-height: 1;
   outline: none;
-  transition: border-color .15s;
+  border: 0;
 }
-.lang-select:hover { border-color: var(--primary); }
-.lang-select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.12); }
 .topbar-icons { display: flex; align-items: center; gap: 8px; }
 .account-btn {
   min-width: 116px;
@@ -635,13 +655,22 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   background: var(--surface);
   text-align: center;
 }
-.progress-stage b { font-size: 16px; }
+.progress-stage b {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  justify-self: center;
+  font-size: 16px;
+  line-height: 1;
+  transform-origin: 50% 50%;
+}
 .progress-stage strong { font-size: 12px; }
 .progress-stage span { color: var(--muted); font-size: 11px; }
 .progress-stage.success { border-color: #9fd3ab; background: var(--ok-bg); }
 .progress-stage.failed { border-color: #f0a8a0; background: var(--bad-bg); }
 .progress-stage.running { border-color: #f4c47a; background: var(--warn-bg); }
-.progress-stage.running b { animation: spin 1.2s linear infinite; display: inline-flex; }
+.progress-stage.running b { animation: loading-nudge 1s ease-in-out infinite; }
 .progress-stage.stopped { background: #eceff3; }
 .progress-stage.skipped { background: var(--surface-mid); }
 

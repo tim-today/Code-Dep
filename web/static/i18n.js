@@ -17,7 +17,7 @@ const I18N = {
   "nav_global": {
     "zh": "全局配置",
     "en": "Settings",
-    "zh-TW": "全局配置"
+    "zh-TW": "全域配置"
   },
   "page_desc_projects": {
     "zh": "管理项目配置、发布环境、版本回退。",
@@ -47,17 +47,17 @@ const I18N = {
   "col_code": {
     "zh": "编号",
     "en": "Code",
-    "zh-TW": "编号"
+    "zh-TW": "編號"
   },
   "col_name": {
     "zh": "名称",
     "en": "Name",
-    "zh-TW": "名称"
+    "zh-TW": "名稱"
   },
   "col_group": {
     "zh": "分组",
     "en": "Group",
-    "zh-TW": "分组"
+    "zh-TW": "分組"
   },
   "col_worker": {
     "zh": "worker",
@@ -72,12 +72,12 @@ const I18N = {
   "col_status": {
     "zh": "最后状态",
     "en": "Last Status",
-    "zh-TW": "最后状态"
+    "zh-TW": "最後狀態"
   },
   "col_time": {
     "zh": "最后发布",
     "en": "Last Published",
-    "zh-TW": "最后发布"
+    "zh-TW": "最後發佈"
   },
   "col_actions": {
     "zh": "操作",
@@ -102,7 +102,7 @@ const I18N = {
   "status_failed": {
     "zh": "失败",
     "en": "Failed",
-    "zh-TW": "失败"
+    "zh-TW": "失敗"
   },
   "status_stopped": {
     "zh": "已终止",
@@ -122,7 +122,7 @@ const I18N = {
   "status_invalid": {
     "zh": "无效",
     "en": "Invalid",
-    "zh-TW": "无效"
+    "zh-TW": "無效"
   },
   "status_unknown": {
     "zh": "未知",
@@ -142,7 +142,7 @@ const I18N = {
   "btn_edit": {
     "zh": "编辑",
     "en": "Edit",
-    "zh-TW": "编辑"
+    "zh-TW": "編輯"
   },
   "btn_back": {
     "zh": "返回",
@@ -167,12 +167,12 @@ const I18N = {
   "btn_test": {
     "zh": "测试",
     "en": "Test",
-    "zh-TW": "测试"
+    "zh-TW": "測試"
   },
   "btn_send": {
     "zh": "发送",
     "en": "Send",
-    "zh-TW": "发送"
+    "zh-TW": "發送"
   },
   "btn_refresh": {
     "zh": "刷新",
@@ -227,7 +227,7 @@ const I18N = {
   "btn_confirm_delete": {
     "zh": "确认删除？",
     "en": "Confirm delete?",
-    "zh-TW": "确认删除？"
+    "zh-TW": "確認刪除？"
   },
   "publish_title": {
     "zh": "项目发布",
@@ -247,7 +247,7 @@ const I18N = {
   "publish_publishing": {
     "zh": "发布中...",
     "en": "Publishing...",
-    "zh-TW": "发布中..."
+    "zh-TW": "發佈中..."
   },
   "publish_success": {
     "zh": "发布成功",
@@ -327,7 +327,7 @@ const I18N = {
   "repo_title": {
     "zh": "代码仓库",
     "en": "Repository",
-    "zh-TW": "代码仓库"
+    "zh-TW": "程式碼倉庫"
   },
   "label_project_code": {
     "zh": "项目编号",
@@ -352,7 +352,7 @@ const I18N = {
   "label_git_secret": {
     "zh": "Git 秘钥",
     "en": "Git Secret",
-    "zh-TW": "Git 秘钥"
+    "zh-TW": "Git 密鑰"
   },
   "label_branch_tag": {
     "zh": "分支 / Tag",
@@ -372,7 +372,7 @@ const I18N = {
   "label_build_target": {
     "zh": "编译目标",
     "en": "Build Target",
-    "zh-TW": "编译目标"
+    "zh-TW": "編譯目標"
   },
   "label_compile_timeout": {
     "zh": "编译超时时间",
@@ -412,12 +412,12 @@ const I18N = {
   "label_preprocess": {
     "zh": "预处理命令",
     "en": "Preprocess Command",
-    "zh-TW": "预处理命令"
+    "zh-TW": "預處理命令"
   },
   "hint_code": {
     "zh": "留空自动生成",
     "en": "Auto-generated if empty",
-    "zh-TW": "留空自动生成"
+    "zh-TW": "留空自動產生"
   },
   "hint_group": {
     "zh": "分组不存在会在保存项目后自动创建。",
@@ -472,7 +472,7 @@ const I18N = {
   "minutes": {
     "zh": "分钟",
     "en": "minutes",
-    "zh-TW": "分钟"
+    "zh-TW": "分鐘"
   },
   "git_testing": {
     "zh": "正在验证代码仓库并拉取分支/Tag...",
@@ -482,7 +482,7 @@ const I18N = {
   "test_connection": {
     "zh": "测试连接",
     "en": "Test Connection",
-    "zh-TW": "测试连接"
+    "zh-TW": "測試連線"
   },
   "refresh_refs": {
     "zh": "刷新分支/Tag",
@@ -502,12 +502,12 @@ const I18N = {
   "build_title": {
     "zh": "编译配置",
     "en": "Build Configuration",
-    "zh-TW": "编译配置"
+    "zh-TW": "編譯配置"
   },
   "build_advanced": {
     "zh": "高级设置",
     "en": "Advanced Settings",
-    "zh-TW": "高级设置"
+    "zh-TW": "進階設定"
   },
   "notify_title": {
     "zh": "消息通知",
@@ -517,12 +517,12 @@ const I18N = {
   "notify_hint": {
     "zh": "发布完成后发送通知。",
     "en": "Send notification after publish.",
-    "zh-TW": "发布完成后发送通知。"
+    "zh-TW": "發佈完成後發送通知。"
   },
   "danger_delete_project": {
     "zh": "删除项目",
     "en": "Delete Project",
-    "zh-TW": "删除项目"
+    "zh-TW": "刪除專案"
   },
   "danger_delete_hint": {
     "zh": "删除会移除项目和关联发布记录，请连续确认。",
@@ -602,7 +602,7 @@ const I18N = {
   "global_workers": {
     "zh": "worker管理",
     "en": "Workers",
-    "zh-TW": "worker管理"
+    "zh-TW": "編譯器管理"
   },
   "global_users": {
     "zh": "用户管理",
@@ -612,7 +612,7 @@ const I18N = {
   "global_system": {
     "zh": "系统设置",
     "en": "System",
-    "zh-TW": "系统设置"
+    "zh-TW": "系統設定"
   },
   "global_workflows": {
     "zh": "工作流",
@@ -622,12 +622,12 @@ const I18N = {
   "secret_code": {
     "zh": "编码",
     "en": "Code",
-    "zh-TW": "编码"
+    "zh-TW": "編碼"
   },
   "secret_type": {
     "zh": "类型",
     "en": "Type",
-    "zh-TW": "类型"
+    "zh-TW": "類型"
   },
   "secret_account": {
     "zh": "账号",
@@ -637,12 +637,12 @@ const I18N = {
   "secret_remark": {
     "zh": "备注",
     "en": "Remark",
-    "zh-TW": "备注"
+    "zh-TW": "備註"
   },
   "secret_updated": {
     "zh": "更新时间",
     "en": "Updated",
-    "zh-TW": "更新时间"
+    "zh-TW": "更新時間"
   },
   "secret_username": {
     "zh": "用户",
@@ -662,7 +662,7 @@ const I18N = {
   "secret_private_key": {
     "zh": "私钥",
     "en": "Private Key",
-    "zh-TW": "私钥"
+    "zh-TW": "私鑰"
   },
   "node_address": {
     "zh": "地址",
@@ -672,7 +672,7 @@ const I18N = {
   "node_dir": {
     "zh": "目录",
     "en": "Directory",
-    "zh-TW": "目录"
+    "zh-TW": "目錄"
   },
   "node_secret": {
     "zh": "秘钥",
@@ -687,12 +687,12 @@ const I18N = {
   "node_base_dir": {
     "zh": "基础目录",
     "en": "Base Dir",
-    "zh-TW": "基础目录"
+    "zh-TW": "基礎目錄"
   },
   "node_work_dir": {
     "zh": "工作目录",
     "en": "Work Dir",
-    "zh-TW": "工作目录"
+    "zh-TW": "工作目錄"
   },
   "node_console": {
     "zh": "控制台",
@@ -702,27 +702,27 @@ const I18N = {
   "node_console_title": {
     "zh": "节点控制台",
     "en": "Node Console",
-    "zh-TW": "节点控制台"
+    "zh-TW": "節點控制台"
   },
   "node_connecting": {
     "zh": "连接中",
     "en": "Connecting",
-    "zh-TW": "连接中"
+    "zh-TW": "連線中"
   },
   "node_connected": {
     "zh": "已连接",
     "en": "Connected",
-    "zh-TW": "已连接"
+    "zh-TW": "已連線"
   },
   "node_disconnected": {
     "zh": "已断开",
     "en": "Disconnected",
-    "zh-TW": "已断开"
+    "zh-TW": "已斷開"
   },
   "node_conn_error": {
     "zh": "连接错误",
     "en": "Error",
-    "zh-TW": "连接错误"
+    "zh-TW": "連線錯誤"
   },
   "node_invalid_hint": {
     "zh": "节点状态无效，请先测试连接",
@@ -732,17 +732,17 @@ const I18N = {
   "node_ssh_remote": {
     "zh": "SSH 远程",
     "en": "SSH Remote",
-    "zh-TW": "SSH 远程"
+    "zh-TW": "SSH 遠端"
   },
   "node_local": {
     "zh": "本地",
     "en": "Local",
-    "zh-TW": "本地"
+    "zh-TW": "本機"
   },
   "worker_name": {
     "zh": "名称",
     "en": "Name",
-    "zh-TW": "名称"
+    "zh-TW": "名稱"
   },
   "worker_node": {
     "zh": "节点",
@@ -752,7 +752,7 @@ const I18N = {
   "worker_weight": {
     "zh": "权重",
     "en": "Weight",
-    "zh-TW": "权重"
+    "zh-TW": "權重"
   },
   "worker_all": {
     "zh": "全部 worker",
@@ -762,7 +762,7 @@ const I18N = {
   "worker_hint": {
     "zh": "权重 0-9，数值越小越优先。worker 会在工作目录下进入项目目录执行初始化和编译。",
     "en": "Weight 0-9, lower = higher priority. Worker enters project dir in work directory to init and build.",
-    "zh-TW": "权重 0-9，数值越小越优先。worker 会在工作目录下进入项目目录执行初始化和编译。"
+    "zh-TW": "權重 0-9，數值越小越優先。worker 會在工作目錄下進入專案目錄執行初始化和編譯。"
   },
   "worker_empty_hint": {
     "zh": "请先在全局配置创建 worker",
@@ -777,12 +777,12 @@ const I18N = {
   "user_code": {
     "zh": "用户编码",
     "en": "Username",
-    "zh-TW": "用户编码"
+    "zh-TW": "使用者編碼"
   },
   "user_name": {
     "zh": "用户名称",
     "en": "Display Name",
-    "zh-TW": "用户名称"
+    "zh-TW": "使用者名稱"
   },
   "user_role": {
     "zh": "角色",
@@ -792,7 +792,7 @@ const I18N = {
   "user_perms": {
     "zh": "项目授权",
     "en": "Permissions",
-    "zh-TW": "项目授权"
+    "zh-TW": "專案授權"
   },
   "user_admin": {
     "zh": "管理员",
@@ -817,12 +817,12 @@ const I18N = {
   "user_no_perm": {
     "zh": "无授权",
     "en": "No Access",
-    "zh-TW": "无授权"
+    "zh-TW": "無授權"
   },
   "user_can_run": {
     "zh": "可运行",
     "en": "Can Run",
-    "zh-TW": "可运行"
+    "zh-TW": "可執行"
   },
   "user_can_edit": {
     "zh": "可修改",
@@ -832,7 +832,7 @@ const I18N = {
   "notify_type": {
     "zh": "通知类型",
     "en": "Type",
-    "zh-TW": "通知类型"
+    "zh-TW": "通知類型"
   },
   "notify_hook_url": {
     "zh": "Hook 地址",
@@ -842,12 +842,12 @@ const I18N = {
   "notify_email": {
     "zh": "是否邮件",
     "en": "Email",
-    "zh-TW": "是否邮件"
+    "zh-TW": "是否郵件"
   },
   "notify_email_addr": {
     "zh": "收件地址",
     "en": "Email Address",
-    "zh-TW": "收件地址"
+    "zh-TW": "收件位址"
   },
   "notify_wecom": {
     "zh": "企业微信",
@@ -895,9 +895,9 @@ const I18N = {
     "zh-TW": "當前命令為空，不能儲存範本"
   },
   "login_title": {
-    "zh": "轻发布",
-    "en": "CodeDep",
-    "zh-TW": "輕發布"
+    "zh": "登录",
+    "en": "Sign In",
+    "zh-TW": "登入"
   },
   "login_subtitle": {
     "zh": "轻量级自动化编译发布平台",
@@ -912,22 +912,22 @@ const I18N = {
   "change_password": {
     "zh": "修改密码",
     "en": "Change Password",
-    "zh-TW": "修改密码"
+    "zh-TW": "修改密碼"
   },
   "old_password": {
     "zh": "原密码",
     "en": "Current Password",
-    "zh-TW": "原密码"
+    "zh-TW": "原密碼"
   },
   "new_password": {
     "zh": "新密码",
     "en": "New Password",
-    "zh-TW": "新密码"
+    "zh-TW": "新密碼"
   },
   "confirm_password": {
     "zh": "确认新密码",
     "en": "Confirm Password",
-    "zh-TW": "确认新密码"
+    "zh-TW": "確認新密碼"
   },
   "password_changed": {
     "zh": "密码已修改，请使用新密码登录",
@@ -982,7 +982,7 @@ const I18N = {
   "terminal_disconnected": {
     "zh": "连接已断开",
     "en": "Disconnected",
-    "zh-TW": "连接已断开"
+    "zh-TW": "連線已斷開"
   },
   "seconds": {
     "zh": "秒",
@@ -997,7 +997,7 @@ const I18N = {
   "select_arch": {
     "zh": "架构",
     "en": "Arch",
-    "zh-TW": "架构"
+    "zh-TW": "架構"
   },
   "filter_worker": {
     "zh": "过滤 worker",
@@ -1032,27 +1032,27 @@ const I18N = {
   "last_publish": {
     "zh": "最后发布",
     "en": "Last Publish",
-    "zh-TW": "最后发布"
+    "zh-TW": "最後發佈"
   },
   "last_status": {
     "zh": "最后状态",
     "en": "Last Status",
-    "zh-TW": "最后状态"
+    "zh-TW": "最後狀態"
   },
   "elapsed": {
     "zh": "耗时",
     "en": "Elapsed",
-    "zh-TW": "耗时"
+    "zh-TW": "耗時"
   },
   "lang_setting": {
     "zh": "语言设置",
     "en": "Language",
-    "zh-TW": "语言设置"
+    "zh-TW": "語言設定"
   },
   "lang_hint": {
     "zh": "选择界面显示语言，刷新后生效。",
     "en": "Choose display language. Takes effect on refresh.",
-    "zh-TW": "选择界面显示语言，刷新后生效。"
+    "zh-TW": "選擇介面顯示語言，重新整理後生效。"
   },
   "login_account": {
     "zh": "账号",
@@ -1082,7 +1082,7 @@ const I18N = {
   "modal_title": {
     "zh": "编辑",
     "en": "Edit",
-    "zh-TW": "编辑"
+    "zh-TW": "編輯"
   },
   "cancel": {
     "zh": "取消",
@@ -1544,6 +1544,11 @@ const I18N = {
     "en": "Workers",
     "zh-TW": "編譯器管理"
   },
+  "workers_count": {
+    "zh": "个编译器",
+    "en": "workers",
+    "zh-TW": "個編譯器"
+  },
   "new_secret_btn": {
     "zh": "新增秘钥",
     "en": "New Secret",
@@ -1638,9 +1643,210 @@ const I18N = {
     "zh": ".code-dep/workspaces 或 /data/workspaces",
     "en": ".code-dep/workspaces or /data/workspaces",
     "zh-TW": ".code-dep/workspaces 或 /data/workspaces"
+  },
+  "lang_en": {
+    "zh": "English",
+    "en": "English",
+    "zh-TW": "English"
+  },
+  "lang_zh": {
+    "zh": "简体中文",
+    "en": "简体中文",
+    "zh-TW": "簡體中文"
+  },
+  "home_title": {
+    "zh": "项目列表",
+    "en": "Projects",
+    "zh-TW": "專案列表"
+  },
+  "notifications": {
+    "zh": "通知",
+    "en": "Notifications",
+    "zh-TW": "通知"
+  },
+  "settings": {
+    "zh": "设置",
+    "en": "Settings",
+    "zh-TW": "設定"
+  },
+  "account": {
+    "zh": "账号",
+    "en": "Account",
+    "zh-TW": "帳號"
+  },
+  "close": {
+    "zh": "关闭",
+    "en": "Close",
+    "zh-TW": "關閉"
+  },
+  "logout": {
+    "zh": "退出登录",
+    "en": "Sign Out",
+    "zh-TW": "登出"
+  },
+  "empty_secrets": {
+    "zh": "暂无秘钥。",
+    "en": "No secrets yet.",
+    "zh-TW": "暫無密鑰。"
+  },
+  "empty_nodes": {
+    "zh": "暂无节点。",
+    "en": "No nodes yet.",
+    "zh-TW": "暫無節點。"
+  },
+  "empty_records": {
+    "zh": "暂无发布记录。",
+    "en": "No publish records yet.",
+    "zh-TW": "暫無發佈記錄。"
+  },
+  "project_not_found": {
+    "zh": "项目不存在",
+    "en": "Project not found",
+    "zh-TW": "專案不存在"
+  },
+  "detail_desc": {
+    "zh": "状态：{status}，上次编译时间：{time}",
+    "en": "Status: {status}, last build: {time}",
+    "zh-TW": "狀態：{status}，上次編譯時間：{time}"
+  },
+  "project_summary": {
+    "zh": "最后发布：{time}（分支/Tag：{ref}，分组：{group}）",
+    "en": "Last publish: {time} (Branch/Tag: {ref}, group: {group})",
+    "zh-TW": "最後發佈：{time}（分支/Tag：{ref}，分組：{group}）"
+  },
+  "elapsed_prefix": {
+    "zh": "耗时",
+    "en": "Elapsed",
+    "zh-TW": "耗時"
+  },
+  "delete_record_confirm": {
+    "zh": "确认删除发布记录「{label}」及对应构建产物？",
+    "en": "Delete publish record \"{label}\" and related artifacts?",
+    "zh-TW": "確認刪除發佈記錄「{label}」及對應構建產物？"
+  },
+  "delete_input_hint": {
+    "zh": "请输入 DELETE 确认删除",
+    "en": "Type DELETE to confirm",
+    "zh-TW": "請輸入 DELETE 確認刪除"
+  },
+  "worker_exec_hint": {
+    "zh": "发布任务按权重和繁忙状态选择编译器执行编译。",
+    "en": "Publish tasks choose workers by weight and busy state.",
+    "zh-TW": "發佈任務按權重和繁忙狀態選擇編譯器執行編譯。"
+  },
+  "worker_weight_hint": {
+    "zh": "权重 0-9，数值越小越优先。编译器会在工作目录下进入项目目录执行初始化和编译。",
+    "en": "Weight 0-9, lower runs first. Worker enters the project directory under the work dir to initialize and build.",
+    "zh-TW": "權重 0-9，數值越小越優先。編譯器會在工作目錄下進入專案目錄執行初始化和編譯。"
+  },
+  "user_empty_projects": {
+    "zh": "暂无项目可授权",
+    "en": "No projects to authorize",
+    "zh-TW": "暫無專案可授權"
+  },
+  "no_edit_permission": {
+    "zh": "没有项目修改权限。",
+    "en": "No project edit permission.",
+    "zh-TW": "沒有專案修改權限。"
+  },
+  "publish_config": {
+    "zh": "发布配置",
+    "en": "Publish Config",
+    "zh-TW": "發佈配置"
+  },
+  "save_config": {
+    "zh": "保存配置",
+    "en": "Save Config",
+    "zh-TW": "儲存配置"
+  },
+  "notify_legacy_hint": {
+    "zh": "请先在全局配置的通知管理中维护通知；旧项目里的直接 Hook 配置仍兼容发送。",
+    "en": "Manage notifications in Settings first. Direct Hook settings in old projects are still supported.",
+    "zh-TW": "請先在全域配置的通知管理中維護通知；舊專案裡的直接 Hook 配置仍相容發送。"
+  },
+  "worker_select_hint": {
+    "zh": "指定编译器编译，默认根据繁忙状态分配；不选就是随机。",
+    "en": "Assign workers for build. Empty means random by busy state.",
+    "zh-TW": "指定編譯器編譯，預設根據繁忙狀態分配；不選就是隨機。"
+  },
+  "node_empty_hint": {
+    "zh": "请先创建有效节点",
+    "en": "Create a valid node first",
+    "zh-TW": "請先建立有效節點"
+  },
+  "random": {
+    "zh": "随机",
+    "en": "Random",
+    "zh-TW": "隨機"
+  },
+  "weight_label": {
+    "zh": "权重",
+    "en": "Weight",
+    "zh-TW": "權重"
+  },
+  "git_available": {
+    "zh": "代码仓库可用，分支 {branches} 个，Tag {tags} 个",
+    "en": "Repository available, {branches} branches, {tags} tags",
+    "zh-TW": "程式碼倉庫可用，分支 {branches} 個，Tag {tags} 個"
+  },
+  "git_failed": {
+    "zh": "代码仓库验证失败：{message}",
+    "en": "Repository validation failed: {message}",
+    "zh-TW": "程式碼倉庫驗證失敗：{message}"
+  },
+  "delete_project_name_prompt": {
+    "zh": "输入项目名称确认删除：{name}",
+    "en": "Type project name to confirm deletion: {name}",
+    "zh-TW": "輸入專案名稱確認刪除：{name}"
+  },
+  "project_name_mismatch": {
+    "zh": "项目名称不匹配，已取消",
+    "en": "Project name mismatch, cancelled",
+    "zh-TW": "專案名稱不匹配，已取消"
+  },
+  "stop_request_sent": {
+    "zh": "已发送终止发布请求",
+    "en": "Stop request sent",
+    "zh-TW": "已發送終止發佈請求"
+  },
+  "log_extra_hint": {
+    "zh": "仅显示最后 {shown} / {total} 行，最多保留 {limit} 行。{extra}",
+    "en": "Showing last {shown} / {total} lines, keeping up to {limit}. {extra}",
+    "zh-TW": "僅顯示最後 {shown} / {total} 行，最多保留 {limit} 行。{extra}"
+  },
+  "notif_empty": {
+    "zh": "暂无新消息",
+    "en": "No new messages",
+    "zh-TW": "暫無新消息"
+  },
+  "mark_all_read": {
+    "zh": "全部已读",
+    "en": "Mark all read",
+    "zh-TW": "全部已讀"
+  },
+  "ref_empty": {
+    "zh": "未选择分支 / Tag",
+    "en": "No branch / Tag selected",
+    "zh-TW": "未選擇分支 / Tag"
+  },
+  "ref_no_options": {
+    "zh": "暂无分支 / Tag，请先测试连接",
+    "en": "No branches / Tags. Test connection first.",
+    "zh-TW": "暫無分支 / Tag，請先測試連線"
+  },
+  "notify_test_failed": {
+    "zh": "通知测试失败：{message}",
+    "en": "Notification test failed: {message}",
+    "zh-TW": "通知測試失敗：{message}"
   }
 };
 
+let _lang = localStorage.getItem("lang") || "zh";
+if (!["zh", "en", "zh-TW"].includes(_lang)) _lang = "zh";
+
+function ti(key, vars = {}) {
+  return Object.entries(vars).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), t(key));
+}
 
 function t(key) {
   const entry = I18N[key];
@@ -1649,6 +1855,7 @@ function t(key) {
 }
 
 function setLang(lang) {
+  if (!["zh", "en", "zh-TW"].includes(lang)) lang = "zh";
   _lang = lang;
   localStorage.setItem('lang', lang);
   if (typeof state !== 'undefined' && state.currentUser) {
@@ -1661,6 +1868,8 @@ function setLang(lang) {
 function getLang() { return _lang; }
 
 function translatePage() {
+  document.documentElement.lang = _lang === "zh-TW" ? "zh-Hant" : (_lang === "en" ? "en" : "zh-CN");
+  document.title = t("app_name");
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     const entry = I18N[key];
@@ -1670,6 +1879,16 @@ function translatePage() {
     const key = el.getAttribute('data-i18n-placeholder');
     const entry = I18N[key];
     if (entry) el.placeholder = entry[_lang] || entry['en'] || el.placeholder;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const entry = I18N[key];
+    if (entry) el.title = entry[_lang] || entry['en'] || el.title;
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    const key = el.getAttribute('data-i18n-aria');
+    const entry = I18N[key];
+    if (entry) el.setAttribute("aria-label", entry[_lang] || entry['en'] || el.getAttribute("aria-label") || "");
   });
   document.querySelectorAll('.lang-select').forEach(sel => { sel.value = _lang; });
 }
