@@ -1,6 +1,6 @@
 const $ = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => [...el.querySelectorAll(q)];
-const state = { view: "projects", editorProjectId: "", detailProjectId: "", detailTab: "status", currentUser: null, projects: [], secrets: [], nodes: [], notifications: [], users: [], records: [], gitRefs: [] };
+const state = { view: "projects", editorProjectId: "", detailProjectId: "", detailTab: "status", currentUser: null, projects: [], secrets: [], nodes: [], workers: [], notifications: [], users: [], records: [], gitRefs: [] };
 let editing = null;
 let detailTimer = null;
 let searchText = "";
@@ -62,6 +62,7 @@ function applyBootstrap(data, shouldRender = true) {
     projects: data.projects || [],
     secrets: data.secrets || [],
     nodes: data.nodes || [],
+    workers: data.workers || [],
     notifications: data.notifications || [],
     users: data.users || [],
     records: data.records || []
@@ -99,6 +100,15 @@ function nodeName(id) {
   return state.nodes.find(n => n.id === id)?.code || "-";
 }
 
+function workerName(id) {
+  return state.workers.find(w => w.id === id)?.name || "-";
+}
+
+function projectWorkerNames(project) {
+  const ids = project.build?.workerIds || [];
+  return ids.length ? ids.map(workerName).filter(x => x !== "-").join("、") || "指定 worker" : "全部";
+}
+
 function secretOptions(selected = "") {
   return `<option value="">不选择</option>${state.secrets.map(s => `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${esc(s.code)} · ${esc(s.type)}</option>`).join("")}`;
 }
@@ -110,6 +120,93 @@ function nodeOptions(selected = "") {
 
 function notificationOptions(selected = "") {
   return `<option value="">不选择</option>${state.notifications.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(notifyTypeLabel(n.type))}</option>`).join("")}`;
+}
+
+function refPicker({ id, optionsId, name = "", value = "", refs = [], disabled = false, refresh = "" }) {
+  const current = value || "";
+  const list = refs.length ? refs : [current].filter(Boolean);
+  return `<div class="ref-picker ${disabled ? "disabled" : ""}">
+    <input id="${esc(id)}" ${name ? `name="${esc(name)}"` : ""} type="hidden" value="${esc(current)}">
+    <div class="ref-selected">${refSelectedHtml(current)}</div>
+    <div class="ref-actions">
+      <button type="button" class="ref-trigger" onclick="toggleRefDropdown(this, event)" ${disabled ? "disabled" : ""}><span class="material-symbols-outlined">arrow_drop_down</span>选择</button>
+      ${refresh ? `<button type="button" class="action-icon ref-refresh" onclick="${refresh}" title="刷新分支/Tag" ${disabled ? "disabled" : ""}><span class="material-symbols-outlined">sync</span></button>` : ""}
+    </div>
+    <div class="ref-dropdown">
+      <input class="ref-filter" placeholder="过滤分支 / Tag" autocomplete="off" oninput="filterRefOptions(this)">
+      <div id="${esc(optionsId)}" class="ref-options">${refOptionHtml(list, current)}</div>
+    </div>
+  </div>`;
+}
+
+function refSelectedHtml(current = "") {
+  return current ? `<span class="ref-tag" title="${esc(current)}">${esc(current)}</span>` : `<span class="ref-empty">未选择分支 / Tag</span>`;
+}
+
+function refOptionHtml(refs = [], current = "") {
+  const uniq = [...new Set(refs.filter(Boolean))];
+  if (!uniq.length) return `<div class="ref-empty">暂无分支 / Tag，请先测试连接</div>`;
+  return uniq.map(ref => `<button type="button" class="${ref === current ? "selected" : ""}" data-ref="${esc(ref)}" onclick="selectRefOption(this, event)"><span>${esc(ref)}</span>${ref === current ? `<span class="material-symbols-outlined">check</span>` : ""}</button>`).join("");
+}
+
+function renderRefOptions(id, refs = []) {
+  const options = document.getElementById(id);
+  if (!options) return;
+  const picker = options.closest(".ref-picker");
+  const value = $(".ref-picker > input", picker)?.value || "";
+  options.innerHTML = refOptionHtml(value ? [value, ...refs] : refs, value);
+  if (picker.classList.contains("open")) filterRefOptions($(".ref-filter", picker));
+}
+
+function toggleRefDropdown(btn, ev) {
+  ev?.preventDefault();
+  ev?.stopPropagation();
+  const picker = btn.closest(".ref-picker");
+  const open = !picker.classList.contains("open");
+  closeRefDropdowns(picker);
+  picker.classList.toggle("open", open);
+  if (open) {
+    const filter = $(".ref-filter", picker);
+    if (filter) {
+      filter.value = "";
+      filter.focus();
+      filterRefOptions(filter);
+    }
+  }
+}
+
+function closeRefDropdowns(except = null) {
+  $$(".ref-picker.open").forEach(p => {
+    if (p !== except) p.classList.remove("open");
+  });
+}
+
+function filterRefOptions(input) {
+  const picker = input.closest(".ref-picker");
+  if (!picker) return;
+  const q = input.value.trim().toLowerCase();
+  $$(".ref-options button", picker).forEach(btn => {
+    const text = btn.dataset.ref.toLowerCase();
+    btn.hidden = q && !text.includes(q);
+  });
+}
+
+function selectRefOption(btn, ev) {
+  ev?.preventDefault();
+  const picker = btn.closest(".ref-picker");
+  const input = $(".ref-picker > input", picker);
+  if (input) {
+    input.value = btn.dataset.ref || "";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  $(".ref-selected", picker).innerHTML = refSelectedHtml(input?.value || "");
+  $$(".ref-options button", picker).forEach(item => {
+    const selected = item.dataset.ref === input?.value;
+    item.classList.toggle("selected", selected);
+    item.querySelector(".material-symbols-outlined")?.remove();
+    if (selected) item.insertAdjacentHTML("beforeend", `<span class="material-symbols-outlined">check</span>`);
+  });
+  picker.classList.remove("open");
 }
 
 function notifyTypeLabel(t) {
@@ -305,7 +402,7 @@ function render() {
 function renderProjects() {
   const groups = projectGroups();
   const list = state.projects.filter(p => {
-    const s = `${p.code || ""} ${p.name || ""} ${p.group || ""} ${nodeName(p.build?.nodeId)} ${projectDeployNodes(p)}`.toLowerCase();
+    const s = `${p.code || ""} ${p.name || ""} ${p.group || ""} ${projectWorkerNames(p)} ${projectDeployNodes(p)}`.toLowerCase();
     return (!searchText || s.includes(searchText.toLowerCase())) && (!groupFilter || (p.group || "未分组") === groupFilter);
   });
   $("#content").innerHTML = state.projects.length ? `
@@ -313,12 +410,12 @@ function renderProjects() {
       <button class="tab ${groupFilter ? "" : "active"}" onclick="setGroupFilter('')">全部项目</button>
       ${groups.map(g => `<button class="tab ${groupFilter === g ? "active" : ""}" onclick="setGroupFilter('${escAttr(g)}')">${esc(g)}</button>`).join("")}
     </div>
-    <div class="table-wrap"><table class="table"><thead><tr><th>编号</th><th>名称</th><th>分组</th><th>worker节点</th><th>发布节点</th><th>最后状态</th><th>最后发布</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="table"><thead><tr><th>编号</th><th>名称</th><th>分组</th><th>worker</th><th>发布节点</th><th>最后状态</th><th>最后发布</th></tr></thead><tbody>
       ${list.map(p => `<tr>
         <td class="mono">#${esc(p.code)}</td>
         <td><button class="link-btn" onclick="openProjectDetail('${p.id}')">${esc(p.name)}</button></td>
         <td><span class="badge">${esc(p.group || "未分组")}</span></td>
-        <td class="mono">${esc(nodeName(p.build?.nodeId))}</td>
+        <td class="mono">${esc(projectWorkerNames(p))}</td>
         <td class="mono">${esc(projectDeployNodes(p))}</td>
         <td>${statusBadge(projectDisplayStatus(p))}</td>
         <td>${fmt(projectDisplayTime(p))}</td>
@@ -383,12 +480,6 @@ function renderGlobalConfig() {
       <section>
         <div class="settings-grid">
           <div class="setting-card">
-            <span class="material-symbols-outlined">inventory_2</span>
-            <h3>版本保留策略</h3>
-            <p>项目默认构建版本保留数量，当前平均配置 ${avgKeep} 个版本。</p>
-            <strong>${avgKeep} 个版本</strong>
-          </div>
-          <div class="setting-card">
             <span class="material-symbols-outlined">notifications_active</span>
             <h3>通知配置</h3>
             <p>支持企业微信和飞书 Hook，项目发布完成后可选择全局通知推送结果。</p>
@@ -399,6 +490,12 @@ function renderGlobalConfig() {
             <h3>有效节点</h3>
             <p>无效节点不会出现在项目发布目标选择中。</p>
             <strong>${state.nodes.filter(n => n.status === "valid").length}/${state.nodes.length}</strong>
+          </div>
+          <div class="setting-card">
+            <span class="material-symbols-outlined">precision_manufacturing</span>
+            <h3>编译器</h3>
+            <p>发布任务按权重和繁忙状态选择编译器执行编译。</p>
+            <strong>${state.workers.length} 个编译器</strong>
           </div>
         </div>
       </section>
@@ -417,6 +514,22 @@ function renderGlobalConfig() {
             <td>${esc(u.remark || "-")}</td>
             <td class="actions"><button class="action-icon" onclick="editUser('${u.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('users','${u.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
           </tr>`).join("") || `<tr><td colspan="6" class="empty-cell">暂无用户</td></tr>`}
+        </tbody></table></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <div class="title-icon"><span class="material-symbols-outlined">precision_manufacturing</span><h2>编译器管理</h2></div>
+          <button class="primary" onclick="editWorker()"><span class="material-symbols-outlined">add</span>新增编译器</button>
+        </div>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>名称</th><th>节点</th><th>工作目录</th><th>权重</th><th class="right">操作</th></tr></thead><tbody>
+          ${state.workers.map(w => `<tr>
+            <td class="mono">${esc(w.name)}</td>
+            <td>${esc(nodeName(w.nodeId))}</td>
+            <td class="mono">${esc(w.workDir || ".code-dep/workspaces")}</td>
+            <td><span class="badge">${esc(String(w.weight ?? 5))}</span></td>
+            <td class="actions"><button class="action-icon" onclick="editWorker('${w.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('workers','${w.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
+          </tr>`).join("") || `<tr><td colspan="5" class="empty-cell">暂无编译器</td></tr>`}
         </tbody></table></div>
       </section>
 
@@ -604,7 +717,8 @@ function historyItem(record) {
     <button class="history-item" onclick="showRecordLog('${record.id}')">
       <span class="hi-emoji">${emoji}</span>
       <span class="hi-ver">${esc(shortVersion(record.version))}</span>
-      <span class="hi-dur">${record.endedAt ? "耗时 " + fmtDuration(new Date(record.endedAt) - new Date(record.startedAt)) : (record.status === "running" ? "运行中" : "--")}</span>
+      ${record.workerName ? `<span class="hi-worker" title="${esc(record.workerName)}">${esc(record.workerName)}</span>` : ""}
+      ${historyDuration(record)}
       <span class="hi-time">${time}</span>
     </button>
     <button class="hi-menu-btn" onclick="toggleHistoryMenu('${menuId}', event)" title="操作"><span class="material-symbols-outlined">more_vert</span></button>
@@ -614,6 +728,17 @@ function historyItem(record) {
       ${canDelete ? `<button class="danger" onclick="deleteRecord('${record.id}')"><span class="material-symbols-outlined">delete</span>删除</button>` : ""}
     </div>
   </div>`;
+}
+
+function historyDuration(record) {
+  if (record.endedAt) {
+    return `<span class="hi-dur">耗时 ${esc(fmtDuration(new Date(record.endedAt) - new Date(record.startedAt)))}</span>`;
+  }
+  if (record.status !== "running") return `<span class="hi-dur">--</span>`;
+  const stages = stageSummary(record);
+  const done = ["git", "build", "deploy", "message"].filter(k => ["success", "skipped"].includes(stages[k]?.status)).length;
+  const percent = Math.max(12, done * 25);
+  return `<span class="hi-dur hi-progress" title="发布中" aria-label="发布中"><i style="width:${percent}%"></i></span>`;
 }
 
 function toggleHistoryMenu(id, ev) {
@@ -629,6 +754,8 @@ function closeHistoryMenus() {
 
 document.addEventListener("click", ev => {
   if (!ev.target.closest(".hi-menu") && !ev.target.closest(".hi-menu-btn")) closeHistoryMenus();
+  if (!ev.target.closest(".target-node-picker")) closeTargetNodeDropdowns();
+  if (!ev.target.closest(".ref-picker")) closeRefDropdowns();
 });
 
 function renderLogLines(logs) {
@@ -792,7 +919,7 @@ function startDetailPolling() {
       if (e.status === 401) renderLogin();
       return;
     }
-    Object.assign(state, { currentUser: data.currentUser || null, projects: data.projects || [], records: data.records || [], nodes: data.nodes || [], secrets: data.secrets || [], notifications: data.notifications || [], users: data.users || [] });
+    Object.assign(state, { currentUser: data.currentUser || null, projects: data.projects || [], records: data.records || [], nodes: data.nodes || [], workers: data.workers || [], secrets: data.secrets || [], notifications: data.notifications || [], users: data.users || [] });
     if (state.view === "project-detail" && state.detailTab === "status") renderProjectDetail();
   }, 3000);
 }
@@ -820,7 +947,8 @@ async function refreshRuntimeState() {
     const data = await api("/api/bootstrap");
     const view = state.view;
     applyBootstrap(data, false);
-    if (["projects", "project-detail", "records"].includes(view)) render();
+    const isEditing = view === "project-editor" || (view === "project-detail" && state.detailTab === "edit");
+    if (!isEditing && ["projects", "project-detail", "records"].includes(view)) render();
     if ($("#publishModal").open && activeLogRecord) updateLogProgress();
   } catch (e) {
     if (e.status === 401) renderLogin();
@@ -886,6 +1014,22 @@ function editNode(id = "") {
       await save("nodes", id, data);
     });
   $('[name="type"]').value = n.type || "local";
+}
+
+function editWorker(id = "") {
+  const w = state.workers.find(x => x.id === id) || { weight: 5 };
+  openModal(id ? "编辑编译器" : "新增编译器", `
+    <div class="form-grid">
+      <div class="field"><label>名称</label><input name="name" value="${esc(w.name)}" placeholder="worker-1"></div>
+      <div class="field"><label>节点</label><select name="nodeId">${nodeOptions(w.nodeId)}</select></div>
+      <div class="field full"><label>工作目录</label><input name="workDir" value="${esc(w.workDir)}" placeholder=".code-dep/workspaces 或 /data/workspaces"></div>
+      <div class="field"><label>权重</label><input name="weight" type="number" min="0" max="9" value="${esc(w.weight ?? 5)}"></div>
+      <div class="field full"><small class="hint">权重 0-9，数值越小越优先。编译器会在工作目录下进入项目目录执行初始化和编译。</small></div>
+    </div>`, async () => {
+      const data = formData($("#modalBody"));
+      data.weight = Math.max(0, Math.min(9, Number(data.weight || 5)));
+      await save("workers", id, data);
+    });
 }
 
 function editNotification(id = "") {
@@ -1010,27 +1154,24 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
       <section class="pipeline-panel">
         <div class="pipeline-panel-head"><span class="material-symbols-outlined">source</span><h2>代码仓库</h2></div>
         <div class="pipeline-repo-grid">
-          <div class="repo-left">
-            <div class="field"><label>项目名称</label><input name="name" value="${esc(p.name)}" placeholder="例如：订单服务"></div>
+          <div class="repo-row repo-row-3">
             <div class="field"><label>项目编号</label><input name="code" value="${esc(p.code)}" placeholder="留空自动生成"></div>
-            <div class="field"><label>项目分组</label><input name="group" list="projectGroupList" value="${esc(p.group)}" placeholder="例如：后端 / 前端 / ERP"><datalist id="projectGroupList">${projectGroups().map(g => `<option value="${esc(g)}"></option>`).join("")}</datalist><small class="hint">分组不存在会在保存项目后自动创建。</small></div>
+            <div class="field"><label>项目名称</label><input name="name" value="${esc(p.name)}" placeholder="例如：订单服务"></div>
+            <div class="field"><label>项目分组</label><input name="group" list="projectGroupList" value="${esc(p.group)}" placeholder="例如：后端 / 前端 / ERP"><datalist id="projectGroupList">${projectGroups().map(g => `<option value="${esc(g)}"></option>`).join("")}</datalist></div>
+          </div>
+        <div class="repo-row repo-row-3">
+            <div class="field"><label>Git 秘钥</label><select name="git.secretId">${secretOptions(p.git?.secretId)}</select></div>
+            
+            <div class="field"><label>输出路径</label><input name="build.artifactSource" value="${esc(p.build?.artifactSource || (p.environments || [])[0]?.artifacts?.[0]?.source || ".")}" placeholder="dist/ 或 target/*.jar"></div>
+          </div>
+          <div class="repo-row repo-row-2">
             <div class="field"><label>Git 地址</label><div class="repo-url-row"><span class="material-symbols-outlined">link</span><input name="git.url" value="${esc(p.git?.url)}" placeholder="git@github.com:org/repo.git"><button type="button" class="action-icon" onclick="validateGitFromEditor(true)" title="测试连接"><span class="material-symbols-outlined">sync</span></button></div><small id="gitStatus" class="hint">支持 SSH 和 HTTPS 地址。</small></div>
           </div>
-          <div class="repo-right">
-            <div class="field"><label>分支 / Tag</label><input name="git.ref" list="gitRefList" value="${esc(p.git?.ref)}" placeholder="main / tag / release/*"><datalist id="gitRefList"></datalist></div>
-            <div class="field"><label>Git 秘钥</label><select name="git.secretId">${secretOptions(p.git?.secretId)}</select></div>
+          <div class="repo-row repo-row-3">
+            <div class="field"><label>分支 / Tag</label>${refPicker({ id: "gitRefInput", optionsId: "gitRefOptions", name: "git.ref", value: p.git?.ref || "", refs: state.gitRefs })}</div>
           </div>
         </div>
-      </section>
-
-      <section class="pipeline-panel">
-        <div class="pipeline-panel-head"><span class="material-symbols-outlined">terminal</span><h2>workspace配置</h2></div>
-        <div class="pipeline-build-grid">
-          <div class="field"><label>worker节点</label><select name="build.nodeId">${nodeOptions(p.build?.nodeId)}</select></div>
-          <div class="field"><label>工作目录</label><input name="build.workDir" value="${esc(p.build?.workDir)}" placeholder="/workspace"></div>
-          <div class="field"><label>产物路径</label><input name="build.artifactSource" value="${esc((p.environments || [])[0]?.artifacts?.[0]?.source || ".")}" placeholder="dist/ 或 target/*.jar"></div>
-        </div>
-        <div class="workspace-preprocess">
+        <div class="repo-command">
           ${commandBlock({
             title: "预处理命令",
             hint: "Shell 脚本 · 在源码准备后运行，属于初始化阶段",
@@ -1068,7 +1209,9 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
           <div class="pipeline-panel-head"><span class="material-symbols-outlined">tune</span><h2>高级设置</h2></div>
           <div class="advanced-grid">
             <div class="field"><label>版本保留数量</label><div class="inline-number"><input name="retention.keepReleases" type="number" min="1" value="${esc(p.retention?.keepReleases || 5)}"><span>个版本</span></div></div>
+            <div class="field"><label>发布模式</label><select name="build.publishMode"><option value="overwrite">覆盖发布</option><option value="clean">清理发布</option></select></div>
             <div class="field"><label>编译超时时间</label><div class="inline-number"><input type="number" value="30" disabled><span>分钟</span></div><small class="hint">超过该时间后，可由操作人员终止发布流程。</small></div>
+            <div class="field full"><label>编译器</label>${workerPicker(p.build?.workerIds || [])}<small class="hint">指定编译器编译，默认根据繁忙状态分配；不选就是随机。</small></div>
           </div>
         </section>
       </div>
@@ -1078,21 +1221,21 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
         <button type="button" class="danger" onclick="deleteProjectDeep('${id}', '${esc(p.name)}')">删除项目</button>
       </section>` : ""}
     </div>`;
+  $('[name="build.publishMode"]', container).value = p.build?.publishMode || "overwrite";
   bindProjectEditorEvents();
 }
 
 function envRow(e = { artifacts: [{}] }) {
   const selected = e.artifacts?.[0]?.nodeIds || [];
   const compileDeploy = !!(e.compileDeploy || e.buildCommand);
-  const nodeChecks = state.nodes.filter(n => n.status === "valid" || selected.includes(n.id)).map(n => `<label><input type="checkbox" class="artifactNode" value="${n.id}" ${selected.includes(n.id) ? "checked" : ""} ${n.status !== "valid" ? "disabled" : ""}> ${esc(n.code)}${n.status !== "valid" ? " · 无效" : ""}</label>`).join("");
   return `<div class="target-card env">
     <button type="button" class="target-delete" onclick="this.closest('.env').remove()" title="删除目标"><span class="material-symbols-outlined">delete</span></button>
     <div class="target-title"><span class="material-symbols-outlined">hard_drive</span><strong>发布目标 ${esc(e.name || "sit")}</strong></div>
     <div class="target-grid">
       <div class="field"><label>环境</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
-      <div class="field"><label>目标节点</label><div class="target-node-list">${nodeChecks || "<span class='hint'>请先创建有效节点</span>"}</div></div>
+      <div class="field"><label>目标节点</label>${targetNodePicker(selected)}</div>
       <div class="field"><label>目标目录</label><input class="targetDir" value="${esc(e.artifacts?.[0]?.targetDir || "")}" placeholder="/var/www/app"></div>
-      <div class="field"><label>发布文件/目录</label><input class="artifactSrc" value="${esc(e.artifacts?.[0]?.source || ".")}" placeholder="dist/ 或 target/*.jar"></div>
+      <div class="field"><label>编译目标</label><div class="cross-build-row"><select class="envGoos"><option value="">OS</option><option value="linux" ${e.goos==="linux"?"selected":""}>Linux</option><option value="darwin" ${e.goos==="darwin"?"selected":""}>macOS</option><option value="windows" ${e.goos==="windows"?"selected":""}>Windows</option></select><select class="envGoarch"><option value="">架构</option><option value="amd64" ${e.goarch==="amd64"?"selected":""}>amd64</option><option value="arm64" ${e.goarch==="arm64"?"selected":""}>arm64</option><option value="386" ${e.goarch==="386"?"selected":""}>386</option></select></div><small class="hint">设置 GOOS/GOARCH，留空使用默认。</small></div>
     </div>
     ${commandBlock({
       title: "编译命令",
@@ -1114,6 +1257,136 @@ function envRow(e = { artifacts: [{}] }) {
       scriptName: "deploy.sh"
     })}
   </div>`;
+}
+
+function targetNodePicker(selected = []) {
+  const nodes = state.nodes.filter(n => n.status === "valid" || selected.includes(n.id));
+  if (!nodes.length) return `<div class="target-node-picker empty"><span class="hint">请先创建有效节点</span></div>`;
+  return `<div class="target-node-picker" data-selected="${esc(selected.join(","))}">
+    <div class="target-node-tags">${targetNodeTags(selected)}</div>
+    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>选择节点</button>
+    <div class="target-node-dropdown">
+      <input class="target-node-filter" placeholder="过滤节点" autocomplete="off" oninput="filterTargetNodes(this)">
+      <div class="target-node-options">${targetNodeOptions(selected)}</div>
+    </div>
+  </div>`;
+}
+
+function targetNodeTags(selected = []) {
+  if (!selected.length) return `<span class="target-node-empty">未选择节点</span>`;
+  return selected.map(id => {
+    const node = state.nodes.find(n => n.id === id);
+    const label = node ? `${node.code}${node.status !== "valid" ? " · 无效" : ""}` : id;
+    return `<span class="node-tag" title="${esc(label)}">${esc(label)}<button type="button" onclick="removeTargetNode(this, '${esc(id)}', event)" title="移除"><span class="material-symbols-outlined">close</span></button></span>`;
+  }).join("");
+}
+
+function targetNodeOptions(selected = []) {
+  const nodes = state.nodes.filter(n => n.status === "valid" || selected.includes(n.id));
+  return nodes.map(n => `<button type="button" class="target-node-option ${selected.includes(n.id) ? "selected" : ""}" data-id="${esc(n.id)}" data-label="${esc(n.code)} ${esc(n.type)}" onclick="toggleTargetNode(this, event)" ${n.status !== "valid" ? "disabled" : ""}>
+    <span>${esc(n.code)}<small>${esc(n.type)}${n.status !== "valid" ? " · 无效" : ""}</small></span>
+    <span class="material-symbols-outlined">${selected.includes(n.id) ? "check" : "add"}</span>
+  </button>`).join("");
+}
+
+function selectedTargetNodeIds(picker) {
+  return (picker?.dataset.selected || "").split(",").filter(Boolean);
+}
+
+function setSelectedTargetNodeIds(picker, ids) {
+  picker.dataset.selected = [...new Set(ids)].join(",");
+  $(".target-node-tags", picker).innerHTML = targetNodeTags(selectedTargetNodeIds(picker));
+  $(".target-node-options", picker).innerHTML = targetNodeOptions(selectedTargetNodeIds(picker));
+}
+
+function toggleTargetNodeDropdown(btn, ev) {
+  ev?.preventDefault();
+  ev?.stopPropagation();
+  const picker = btn.closest(".target-node-picker");
+  const open = !picker.classList.contains("open");
+  closeTargetNodeDropdowns(picker);
+  picker.classList.toggle("open", open);
+  if (open) $(".target-node-filter", picker)?.focus();
+}
+
+function closeTargetNodeDropdowns(except = null) {
+  $$(".target-node-picker.open").forEach(p => {
+    if (p !== except) p.classList.remove("open");
+  });
+}
+
+function toggleTargetNode(btn, ev) {
+  ev?.preventDefault();
+  const picker = btn.closest(".target-node-picker");
+  const id = btn.dataset.id;
+  const ids = selectedTargetNodeIds(picker);
+  setSelectedTargetNodeIds(picker, ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  filterTargetNodes($(".target-node-filter", picker));
+}
+
+function removeTargetNode(btn, id, ev) {
+  ev?.preventDefault();
+  ev?.stopPropagation();
+  const picker = btn.closest(".target-node-picker");
+  setSelectedTargetNodeIds(picker, selectedTargetNodeIds(picker).filter(x => x !== id));
+}
+
+function filterTargetNodes(input) {
+  const q = (input?.value || "").trim().toLowerCase();
+  const picker = input?.closest(".target-node-picker");
+  $$(".target-node-option", picker).forEach(btn => {
+    btn.hidden = q && !btn.dataset.label.toLowerCase().includes(q);
+  });
+}
+
+function workerPicker(selected = []) {
+  if (!state.workers.length) return `<div class="target-node-picker empty"><span class="hint">请先在全局配置创建 worker</span></div>`;
+  return `<div class="target-node-picker worker-picker" data-selected="${esc(selected.join(","))}">
+    <div class="target-node-tags">${workerTags(selected)}</div>
+    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>选择</button>
+    <div class="target-node-dropdown">
+      <input class="target-node-filter" placeholder="过滤" autocomplete="off" oninput="filterTargetNodes(this)">
+      <div class="target-node-options">${workerOptions(selected)}</div>
+    </div>
+  </div>`;
+}
+
+function workerTags(selected = []) {
+  if (!selected.length) return `<span class="target-node-empty">随机</span>`;
+  return selected.map(id => {
+    const worker = state.workers.find(w => w.id === id);
+    const label = worker ? `${worker.name} · 权重${worker.weight ?? 5}` : id;
+    return `<span class="node-tag" title="${esc(label)}">${esc(label)}<button type="button" onclick="removeWorkerPick(this, '${esc(id)}', event)" title="移除"><span class="material-symbols-outlined">close</span></button></span>`;
+  }).join("");
+}
+
+function workerOptions(selected = []) {
+  return state.workers.map(w => `<button type="button" class="target-node-option ${selected.includes(w.id) ? "selected" : ""}" data-id="${esc(w.id)}" data-label="${esc(w.name)} ${esc(nodeName(w.nodeId))}" onclick="toggleWorkerPick(this, event)">
+    <span>${esc(w.name)}<small>${esc(nodeName(w.nodeId))} · 权重${esc(String(w.weight ?? 5))}</small></span>
+    <span class="material-symbols-outlined">${selected.includes(w.id) ? "check" : "add"}</span>
+  </button>`).join("");
+}
+
+function setSelectedWorkerIds(picker, ids) {
+  picker.dataset.selected = [...new Set(ids)].join(",");
+  $(".target-node-tags", picker).innerHTML = workerTags(selectedTargetNodeIds(picker));
+  $(".target-node-options", picker).innerHTML = workerOptions(selectedTargetNodeIds(picker));
+}
+
+function toggleWorkerPick(btn, ev) {
+  ev?.preventDefault();
+  const picker = btn.closest(".worker-picker");
+  const id = btn.dataset.id;
+  const ids = selectedTargetNodeIds(picker);
+  setSelectedWorkerIds(picker, ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  filterTargetNodes($(".target-node-filter", picker));
+}
+
+function removeWorkerPick(btn, id, ev) {
+  ev?.preventDefault();
+  ev?.stopPropagation();
+  const picker = btn.closest(".worker-picker");
+  setSelectedWorkerIds(picker, selectedTargetNodeIds(picker).filter(x => x !== id));
 }
 
 function commandBlock({ title, hint, inputClass, wrapperClass, checked, value, checkboxName = "", checkboxClass = "", scriptName = "script.sh" }) {
@@ -1212,10 +1485,11 @@ function editorProjectPayload() {
     name: f.name, code: f.code, group: f.group,
     git: { url: f["git.url"], ref: f["git.ref"], secretId: f["git.secretId"] },
     build: {
-      nodeId: f["build.nodeId"],
-      workDir: f["build.workDir"],
+      artifactSource: f["build.artifactSource"] || ".",
       preprocessEnabled: !!$('[name="build.preprocessEnabled"]', root)?.checked,
-      preprocessCommand: $('[name="build.preprocessEnabled"]', root)?.checked ? ($(".preprocessCmd", root)?.value || "") : ""
+      preprocessCommand: $('[name="build.preprocessEnabled"]', root)?.checked ? ($(".preprocessCmd", root)?.value || "") : "",
+      workerIds: selectedTargetNodeIds($(".worker-picker", root)),
+      publishMode: f["build.publishMode"] || "overwrite"
     },
     notify: { notificationId: f["notify.notificationId"], weComHook: f["notify.weComHook"], feishuHook: f["notify.feishuHook"] },
     retention: { keepReleases: Number(f["retention.keepReleases"] || 5) },
@@ -1226,13 +1500,15 @@ function editorProjectPayload() {
 function editorEnvs(root = $("#projectEditor")) {
   return $$(".env", root).map(row => ({
     name: $(".envName", row).value.trim(),
+    goos: $(".envGoos", row)?.value || "",
+    goarch: $(".envGoarch", row)?.value || "",
     compileDeploy: $(".compileDeploy", row)?.checked || false,
     buildCommand: $(".compileDeploy", row)?.checked ? ($(".buildCmd", row)?.value || "") : "",
     deployCommand: $(".target-deploy-command .command-toggle", row)?.checked ? ($(".deployCmd", row)?.value || "") : "",
     artifacts: [{
-      source: $(".artifactSrc", row).value || ".",
+      source: $('[name="build.artifactSource"]', root)?.value || ".",
       targetDir: $(".targetDir", row).value,
-      nodeIds: $$(".artifactNode:checked", row).map(x => x.value)
+      nodeIds: selectedTargetNodeIds($(".target-node-picker", row))
     }]
   })).filter(e => e.name);
 }
@@ -1250,7 +1526,7 @@ async function validateGitFromEditor(manual) {
     const id = state.editorProjectId || "_draft";
     const refs = await api(`/api/projects/${id}/refs`, { method: "POST", body: JSON.stringify(editorProjectPayload()) });
     state.gitRefs = refs.refs || [];
-    $("#gitRefList").innerHTML = state.gitRefs.map(x => `<option value="${esc(x)}"></option>`).join("");
+    renderRefOptions("gitRefOptions", state.gitRefs);
     status.className = "hint ok-text";
     status.textContent = `代码仓库可用，分支 ${refs.branches?.length || 0} 个，Tag ${refs.tags?.length || 0} 个`;
   } catch (e) {
@@ -1430,8 +1706,9 @@ function openPublish(id, baseRecord = null) {
   $("#publishBody").innerHTML = `
     <div class="publish-form-line">
       <div class="field"><label>项目</label><input value="${esc(p.name)}" disabled></div>
+      <div class="field"><label>编译器</label>${workerPicker(p.build?.workerIds || [])}</div>
       <div class="field"><label>环境</label><select id="pubEnv">${envOptions}</select></div>
-      <div class="field ref-field"><label>分支/Tag</label><div class="repo-url-row"><input id="pubRef" list="pubRefList" value="${esc(baseRecord?.ref || p.git?.ref || "")}" ${baseRecord ? "disabled" : ""} placeholder="输入关键词快速查询"><button type="button" class="action-icon" onclick="refreshPublishRefs()" title="刷新分支/Tag" ${baseRecord ? "disabled" : ""}><span class="material-symbols-outlined">sync</span></button></div><datalist id="pubRefList">${refs.map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist></div>
+      <div class="field ref-field"><label>分支/Tag</label>${refPicker({ id: "pubRef", optionsId: "pubRefOptions", value: baseRecord?.ref || p.git?.ref || "", refs, disabled: !!baseRecord, refresh: "refreshPublishRefs()" })}</div>
     </div>`;
   closeLogStream();
   activeLogRecord = null;
@@ -1449,14 +1726,14 @@ function openPublish(id, baseRecord = null) {
 async function loadPublishRefs(project) {
   try {
     const refs = await api(`/api/projects/${project.id}/refs`, { method: "POST", body: JSON.stringify(project) });
-    $("#pubRefList").innerHTML = (refs.refs || []).map(x => `<option value="${esc(x)}"></option>`).join("");
+    renderRefOptions("pubRefOptions", refs.refs || []);
   } catch {}
 }
 
 async function refreshPublishRefs() {
   const project = state.projects.find(x => x.id === $("#publishModal").dataset.projectId);
   if (!project) return;
-  const btn = $("#publishBody .ref-field button");
+  const btn = $("#publishBody .ref-field .ref-refresh");
   if (!btn) return;
   btn.disabled = true;
   try {
@@ -1476,7 +1753,7 @@ async function startPublish(ev) {
   try {
     const rec = await api("/api/publish", {
       method: "POST",
-      body: JSON.stringify({ projectId, recordId, env: $("#pubEnv").value, ref: $("#pubRef").value, mode: recordId ? "redeploy" : "build" })
+      body: JSON.stringify({ projectId, recordId, env: $("#pubEnv").value, ref: $("#pubRef").value, mode: recordId ? "redeploy" : "build", workerIds: selectedTargetNodeIds($(".worker-picker")) })
     });
     activeLogRecord = rec;
     state.records = [rec, ...state.records.filter(r => r.id !== rec.id)];
@@ -1503,7 +1780,7 @@ async function stopCurrentPublish() {
 
 function publishLogHeader(record, lines) {
   return `<div class="toolbar log-toolbar">
-    <span class="badge">${esc(record.projectName)} · ${esc(record.env)} · ${esc(record.version)}</span>
+    <span class="badge">${esc(record.projectName)} · ${esc(record.env)} · ${esc(record.version)}${record.workerName ? ` · <span class="worker-badge"><span class="material-symbols-outlined">precision_manufacturing</span>${esc(record.workerName)}</span>` : ""}</span>
     <span class="hint">仅显示最近日志，运行中可强制终止。</span>
   </div>
   <div id="logProgress">${renderLogProgress(record, lines)}</div>`;

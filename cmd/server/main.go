@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -44,6 +45,7 @@ type Store struct {
 	NextID        int64          `json:"nextId"`
 	Secrets       []Secret       `json:"secrets"`
 	Nodes         []Node         `json:"nodes"`
+	Workers       []Worker       `json:"workers"`
 	Notifications []Notification `json:"notifications"`
 	Users         []User         `json:"users"`
 	Projects      []Project      `json:"projects"`
@@ -75,6 +77,16 @@ type Node struct {
 	Remark    string    `json:"remark"`
 	Status    string    `json:"status"`
 	LastError string    `json:"lastError"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type Worker struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	NodeID    string    `json:"nodeId"`
+	WorkDir   string    `json:"workDir"`
+	Weight    int       `json:"weight"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -132,14 +144,19 @@ type GitConfig struct {
 }
 
 type BuildConfig struct {
-	NodeID            string `json:"nodeId"`
-	WorkDir           string `json:"workDir"`
-	PreprocessEnabled bool   `json:"preprocessEnabled"`
-	PreprocessCommand string `json:"preprocessCommand"`
+	NodeID            string   `json:"nodeId"`
+	WorkDir           string   `json:"workDir"`
+	ArtifactSource    string   `json:"artifactSource"`
+	PreprocessEnabled bool     `json:"preprocessEnabled"`
+	PreprocessCommand string   `json:"preprocessCommand"`
+	WorkerIDs         []string `json:"workerIds"`
+	PublishMode       string   `json:"publishMode"`
 }
 
 type EnvConfig struct {
 	Name          string         `json:"name"`
+	Goos          string         `json:"goos"`
+	Goarch        string         `json:"goarch"`
 	CompileDeploy bool           `json:"compileDeploy"`
 	BuildCommand  string         `json:"buildCommand"`
 	Artifacts     []ArtifactRule `json:"artifacts"`
@@ -171,6 +188,8 @@ type Record struct {
 	Version     string     `json:"version"`
 	Status      string     `json:"status"`
 	Mode        string     `json:"mode"`
+	WorkerID    string     `json:"workerId"`
+	WorkerName  string     `json:"workerName"`
 	Log         []string   `json:"log"`
 	StartedAt   time.Time  `json:"startedAt"`
 	EndedAt     *time.Time `json:"endedAt"`
@@ -204,6 +223,7 @@ type bootstrapPayload struct {
 	CurrentUser   User           `json:"currentUser"`
 	Secrets       []Secret       `json:"secrets"`
 	Nodes         []Node         `json:"nodes"`
+	Workers       []Worker       `json:"workers"`
 	Notifications []Notification `json:"notifications"`
 	Users         []User         `json:"users"`
 	Projects      []Project      `json:"projects"`
@@ -220,11 +240,12 @@ type apiError struct {
 }
 
 type publishRequest struct {
-	ProjectID string `json:"projectId"`
-	Env       string `json:"env"`
-	Ref       string `json:"ref"`
-	Mode      string `json:"mode"`
-	RecordID  string `json:"recordId"`
+	ProjectID string   `json:"projectId"`
+	Env       string   `json:"env"`
+	WorkerIDs []string `json:"workerIds"`
+	Ref       string   `json:"ref"`
+	Mode      string   `json:"mode"`
+	RecordID  string   `json:"recordId"`
 }
 
 func main() {
@@ -247,6 +268,8 @@ func main() {
 	mux.HandleFunc("/api/secrets/", server.secretByID)
 	mux.HandleFunc("/api/nodes", server.nodes)
 	mux.HandleFunc("/api/nodes/", server.nodeByID)
+	mux.HandleFunc("/api/workers", server.workers)
+	mux.HandleFunc("/api/workers/", server.workerByID)
 	mux.HandleFunc("/api/notifications", server.notifications)
 	mux.HandleFunc("/api/notifications/", server.notificationByID)
 	mux.HandleFunc("/api/users", server.users)
@@ -300,20 +323,47 @@ func loadStore(dataDir string) (*Store, error) {
 			log.Printf("migrate old data failed: %v", err)
 		}
 	}
-	if err := store.loadMeta(); err != nil { return nil, err }
-	if err := store.loadSecrets(); err != nil { return nil, err }
-	if err := store.loadNodes(); err != nil { return nil, err }
-	if err := store.loadNotifications(); err != nil { return nil, err }
-	if err := store.loadUsers(); err != nil { return nil, err }
-	if err := store.loadProjects(); err != nil { return nil, err }
-	if err := store.loadAllRecords(); err != nil { return nil, err }
-	if store.NextID == 0 { store.NextID = 1 }
+	if err := store.loadMeta(); err != nil {
+		return nil, err
+	}
+	if err := store.loadSecrets(); err != nil {
+		return nil, err
+	}
+	if err := store.loadNodes(); err != nil {
+		return nil, err
+	}
+	if err := store.loadWorkers(); err != nil {
+		return nil, err
+	}
+	if err := store.loadNotifications(); err != nil {
+		return nil, err
+	}
+	if err := store.loadUsers(); err != nil {
+		return nil, err
+	}
+	if err := store.loadProjects(); err != nil {
+		return nil, err
+	}
+	if err := store.loadAllRecords(); err != nil {
+		return nil, err
+	}
+	if store.NextID == 0 {
+		store.NextID = 1
+	}
 	migrateWorkspaceConfig(store)
+	migrateWorkers(store)
+	_ = store.saveAll()
 	return store, os.MkdirAll(dataDir, 0755)
 }
 
 func migrateWorkspaceConfig(store *Store) {
 	for pi := range store.Projects {
+		if store.Projects[pi].Build.ArtifactSource == "" {
+			store.Projects[pi].Build.ArtifactSource = firstArtifactSource(store.Projects[pi])
+		}
+		if store.Projects[pi].Build.PublishMode == "" {
+			store.Projects[pi].Build.PublishMode = "overwrite"
+		}
 		for ei := range store.Projects[pi].Environments {
 			env := &store.Projects[pi].Environments[ei]
 			if strings.TrimSpace(env.BuildCommand) != "" {
@@ -321,6 +371,62 @@ func migrateWorkspaceConfig(store *Store) {
 			}
 		}
 	}
+}
+
+func migrateWorkers(store *Store) {
+	if len(store.Workers) > 0 {
+		return
+	}
+	seen := map[string]string{}
+	for pi := range store.Projects {
+		p := &store.Projects[pi]
+		if p.Build.NodeID == "" {
+			continue
+		}
+		key := p.Build.NodeID + "|" + p.Build.WorkDir
+		if id, ok := seen[key]; ok {
+			p.Build.WorkerIDs = []string{id}
+			continue
+		}
+		node, ok := findNode(store, p.Build.NodeID)
+		if !ok {
+			continue
+		}
+		id := store.newID("worker")
+		seen[key] = id
+		name := node.Code
+		if p.Build.WorkDir != "" {
+			name = node.Code + " · " + filepath.Base(filepath.Clean(p.Build.WorkDir))
+		}
+		store.Workers = append(store.Workers, Worker{
+			ID: id, Name: name, NodeID: p.Build.NodeID, WorkDir: p.Build.WorkDir,
+			Weight: 5, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		})
+		p.Build.WorkerIDs = []string{id}
+	}
+	if len(store.Workers) == 0 {
+		for _, node := range store.Nodes {
+			if node.Status != "valid" {
+				continue
+			}
+			id := store.newID("worker")
+			store.Workers = append(store.Workers, Worker{
+				ID: id, Name: node.Code, NodeID: node.ID, WorkDir: ".code-dep/workspaces",
+				Weight: 5, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+			})
+		}
+	}
+}
+
+func firstArtifactSource(project Project) string {
+	for _, env := range project.Environments {
+		for _, artifact := range env.Artifacts {
+			if strings.TrimSpace(artifact.Source) != "" {
+				return artifact.Source
+			}
+		}
+	}
+	return "."
 }
 
 func ensureDefaultAdmin(store *Store) error {
@@ -581,6 +687,7 @@ func (s *Server) bootstrapForUserLocked(user User) bootstrapPayload {
 		CurrentUser:   sanitizeUser(user),
 		Secrets:       append([]Secret(nil), s.store.Secrets...),
 		Nodes:         append([]Node(nil), s.store.Nodes...),
+		Workers:       append([]Worker(nil), s.store.Workers...),
 		Notifications: append([]Notification(nil), s.store.Notifications...),
 		Projects:      filterProjectsForUser(s.store.Projects, user),
 		Records:       filterRecordsForUser(s.store.Records, user),
@@ -844,6 +951,105 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) workers(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		s.store.mu.RLock()
+		defer s.store.mu.RUnlock()
+		respond(w, s.store.Workers)
+	case http.MethodPost:
+		var item Worker
+		if err := readJSON(r, &item); err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		if err := validateWorker(item); err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		s.store.mu.Lock()
+		defer s.store.mu.Unlock()
+		if indexNode(s.store.Nodes, item.NodeID) < 0 {
+			fail(w, 400, "worker 节点不存在")
+			return
+		}
+		item.ID = s.store.newID("worker")
+		item.CreatedAt = time.Now()
+		item.UpdatedAt = item.CreatedAt
+		s.store.Workers = append(s.store.Workers, item)
+		if err := s.store.saveLocked(); err != nil {
+			fail(w, 500, err.Error())
+			return
+		}
+		respond(w, item)
+	default:
+		fail(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (s *Server) workerByID(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/workers/")
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+	idx := indexWorker(s.store.Workers, id)
+	if idx < 0 {
+		fail(w, 404, "worker 不存在")
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var item Worker
+		if err := readJSON(r, &item); err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		if err := validateWorker(item); err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		if indexNode(s.store.Nodes, item.NodeID) < 0 {
+			fail(w, 400, "worker 节点不存在")
+			return
+		}
+		item.ID = id
+		item.CreatedAt = s.store.Workers[idx].CreatedAt
+		item.UpdatedAt = time.Now()
+		s.store.Workers[idx] = item
+	case http.MethodDelete:
+		s.store.Workers = append(s.store.Workers[:idx], s.store.Workers[idx+1:]...)
+		for pi := range s.store.Projects {
+			s.store.Projects[pi].Build.WorkerIDs = removeString(s.store.Projects[pi].Build.WorkerIDs, id)
+		}
+	default:
+		fail(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if err := s.store.saveLocked(); err != nil {
+		fail(w, 500, err.Error())
+		return
+	}
+	respond(w, map[string]bool{"ok": true})
+}
+
+func validateWorker(item Worker) error {
+	if strings.TrimSpace(item.Name) == "" {
+		return errors.New("worker 名称必填")
+	}
+	if strings.TrimSpace(item.NodeID) == "" {
+		return errors.New("worker 节点必选")
+	}
+	if item.Weight < 0 || item.Weight > 9 {
+		return errors.New("worker 权重必须是 0-9")
+	}
+	return nil
 }
 
 func (s *Server) notifications(w http.ResponseWriter, r *http.Request) {
@@ -1218,10 +1424,19 @@ func (s *Server) projectByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func normalizeProject(item *Project) {
+	if item.Build.ArtifactSource == "" {
+		item.Build.ArtifactSource = firstArtifactSource(*item)
+	}
+	if item.Build.PublishMode != "clean" {
+		item.Build.PublishMode = "overwrite"
+	}
 	for i := range item.Environments {
 		env := &item.Environments[i]
 		if !env.CompileDeploy {
 			env.BuildCommand = ""
+		}
+		for ai := range env.Artifacts {
+			env.Artifacts[ai].Source = item.Build.ArtifactSource
 		}
 	}
 	if !item.Build.PreprocessEnabled {
@@ -1313,6 +1528,15 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, err.Error())
 		return
 	}
+	var worker Worker
+	if baseRecord == nil {
+		var ok bool
+		worker, ok = s.selectPublishWorker(project, req.WorkerIDs)
+		if !ok {
+			fail(w, 400, "未配置可用 worker")
+			return
+		}
+	}
 	record := Record{
 		ID:          s.randomID("rec"),
 		ProjectID:   project.ID,
@@ -1323,6 +1547,10 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 		Status:      "running",
 		Mode:        req.Mode,
 		StartedAt:   time.Now(),
+	}
+	if worker.ID != "" {
+		record.WorkerID = worker.ID
+		record.WorkerName = worker.Name
 	}
 	if record.Ref == "" {
 		record.Ref = project.Git.Ref
@@ -1342,7 +1570,7 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	s.registerPublish(record.ID, cancel)
-	go s.runPublish(ctx, project, env, record, baseRecord)
+	go s.runPublish(ctx, project, env, record, baseRecord, worker)
 	respond(w, record)
 }
 
@@ -1428,6 +1656,72 @@ func (s *Server) clearPublish(id string) {
 	delete(s.running, id)
 }
 
+func (s *Server) selectPublishWorker(project Project, overrideIDs []string) (Worker, bool) {
+	s.store.mu.RLock()
+	defer s.store.mu.RUnlock()
+	workerIDs := project.Build.WorkerIDs
+	if len(overrideIDs) > 0 {
+		workerIDs = overrideIDs
+	}
+	allowed := map[string]bool{}
+	for _, id := range workerIDs {
+		if strings.TrimSpace(id) != "" {
+			allowed[id] = true
+		}
+	}
+	candidates := []Worker{}
+	for _, worker := range s.store.Workers {
+		if len(allowed) > 0 && !allowed[worker.ID] {
+			continue
+		}
+		if indexNode(s.store.Nodes, worker.NodeID) < 0 {
+			continue
+		}
+		candidates = append(candidates, worker)
+	}
+	if len(candidates) == 0 {
+		return Worker{}, false
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Weight == candidates[j].Weight {
+			return candidates[i].Name < candidates[j].Name
+		}
+		return candidates[i].Weight < candidates[j].Weight
+	})
+	start := 0
+	if len(candidates) > 1 {
+		minWeight := candidates[0].Weight
+		sameWeight := 0
+		for sameWeight < len(candidates) && candidates[sameWeight].Weight == minWeight {
+			sameWeight++
+		}
+		start = mrand.Intn(sameWeight)
+	}
+	busySince := map[string]time.Time{}
+	for _, r := range s.store.Records {
+		if r.Status == "running" && r.WorkerID != "" {
+			if t, ok := busySince[r.WorkerID]; !ok || r.StartedAt.Before(t) {
+				busySince[r.WorkerID] = r.StartedAt
+			}
+		}
+	}
+	for i := 0; i < len(candidates); i++ {
+		worker := candidates[(start+i)%len(candidates)]
+		if _, busy := busySince[worker.ID]; !busy {
+			return worker, true
+		}
+	}
+	chosen := candidates[0]
+	oldest := busySince[chosen.ID]
+	for _, worker := range candidates[1:] {
+		if t := busySince[worker.ID]; t.Before(oldest) {
+			chosen = worker
+			oldest = t
+		}
+	}
+	return chosen, true
+}
+
 func (s *Server) markRecordStopped(record Record) {
 	ended := time.Now()
 	s.store.mu.Lock()
@@ -1445,7 +1739,7 @@ func (s *Server) markRecordStopped(record Record) {
 	s.store.saveRecordMeta(record.ProjectID)
 }
 
-func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig, record Record, baseRecord *Record) {
+func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig, record Record, baseRecord *Record, worker Worker) {
 	logLine := func(format string, args ...any) {
 		line := fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), fmt.Sprintf(format, args...))
 		s.store.appendRecordLog(record.ID, line)
@@ -1489,17 +1783,31 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 		releaseDir = filepath.Join(".code-dep", "releases", project.Code, baseRecord.Version)
 		logLine("使用历史版本 %s，跳过拉取和编译", baseRecord.Version)
 	} else {
-		workDir := project.Build.WorkDir
-		if workDir == "" {
-			workDir = filepath.Join(".code-dep", "workspaces", project.Code)
-		}
+		logLine("当前工作 worker: %s（权重 %d）", worker.Name, worker.Weight)
 		gitSecret, _ := findSecret(s.store, project.Git.SecretID)
-		buildNode, hasBuildNode := findNode(s.store, project.Build.NodeID)
-		if hasBuildNode && buildNode.Type == "ssh" {
-			workDir = remoteWorkDir(project, buildNode)
+		buildNode, ok := findNode(s.store, worker.NodeID)
+		if !ok {
+			logLine("worker 节点不存在: %s", worker.NodeID)
+			finish("failed")
+			return
+		}
+		if buildNode.Type == "ssh" {
+			workDir := remoteWorkerProjectDir(project, worker, buildNode)
 			secret, _ := findSecret(s.store, buildNode.SecretID)
-			if err := remoteMkdir(ctx, buildNode, secret, workDir, logLine); err != nil {
+			if err := remoteMkdir(ctx, buildNode, secret, pathDirRemote(workDir), logLine); err != nil {
 				logLine("创建远程工作目录失败: %v", err)
+				finish("failed")
+				return
+			}
+			if strings.TrimSpace(project.Git.URL) != "" {
+				logLine("清理远程项目目录: %s", workDir)
+				if err := runShellRemote(ctx, buildNode, secret, "rm -rf "+shQuote(workDir), "", logLine); err != nil {
+					logLine("清理远程项目目录失败: %v", err)
+					finish("failed")
+					return
+				}
+			} else if err := remoteMkdir(ctx, buildNode, secret, workDir, logLine); err != nil {
+				logLine("创建远程项目目录失败: %v", err)
 				finish("failed")
 				return
 			}
@@ -1520,7 +1828,8 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 			}
 			if env.CompileDeploy && strings.TrimSpace(env.BuildCommand) != "" {
 				logLine("执行目标编译命令: %s", env.Name)
-				if err := runShellRemote(ctx, buildNode, secret, env.BuildCommand, workDir, logLine); err != nil {
+				buildScript := wrapBuildEnv(env, env.BuildCommand)
+				if err := runShellRemote(ctx, buildNode, secret, buildScript, workDir, logLine); err != nil {
 					logLine("远程编译失败: %v", err)
 					finish("failed")
 					return
@@ -1534,11 +1843,21 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 				return
 			}
 		} else {
-			if hasBuildNode && buildNode.Type == "local" {
-				workDir = localWorkDir(project, buildNode)
-			}
-			if err := os.MkdirAll(workDir, 0755); err != nil {
+			workDir := localWorkerProjectDir(project, worker, buildNode)
+			if err := os.MkdirAll(filepath.Dir(workDir), 0755); err != nil {
 				logLine("创建工作目录失败: %v", err)
+				finish("failed")
+				return
+			}
+			if strings.TrimSpace(project.Git.URL) != "" {
+				logLine("清理项目目录: %s", workDir)
+				if err := os.RemoveAll(workDir); err != nil {
+					logLine("清理项目目录失败: %v", err)
+					finish("failed")
+					return
+				}
+			} else if err := os.MkdirAll(workDir, 0755); err != nil {
+				logLine("创建项目目录失败: %v", err)
 				finish("failed")
 				return
 			}
@@ -1559,7 +1878,8 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 			}
 			if env.CompileDeploy && strings.TrimSpace(env.BuildCommand) != "" {
 				logLine("执行目标编译命令: %s", env.Name)
-				if err := runShell(ctx, env.BuildCommand, workDir, logLine); err != nil {
+				buildScript := wrapBuildEnv(env, env.BuildCommand)
+				if err := runShell(ctx, buildScript, workDir, logLine); err != nil {
 					logLine("编译失败: %v", err)
 					finish("failed")
 					return
@@ -1680,16 +2000,24 @@ func packageRemoteRelease(ctx context.Context, node Node, secret Secret, workDir
 }
 
 func deployArtifacts(ctx context.Context, store *Store, project Project, env EnvConfig, releaseDir string, logLine func(string, ...any)) error {
+	artifactSource := strings.TrimSpace(project.Build.ArtifactSource)
+	if artifactSource == "" {
+		artifactSource = "."
+	}
+	publishMode := project.Build.PublishMode
+	if publishMode != "clean" {
+		publishMode = "overwrite"
+	}
 	for _, artifact := range env.Artifacts {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if strings.TrimSpace(artifact.Source) == "" || strings.TrimSpace(artifact.TargetDir) == "" {
+		if strings.TrimSpace(artifact.TargetDir) == "" {
 			continue
 		}
-		source := releaseSourcePath(releaseDir, artifact.Source)
+		source := releaseSourcePath(releaseDir, artifactSource)
 		if _, err := os.Stat(source); err != nil {
-			return fmt.Errorf("产物不存在: %s（已查找 %s）", artifact.Source, source)
+			return fmt.Errorf("产物不存在: %s（已查找 %s）", artifactSource, source)
 		}
 		for _, nodeID := range artifact.NodeIDs {
 			if err := ctx.Err(); err != nil {
@@ -1702,8 +2030,15 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 			if node.Type == "ssh" {
 				secret, _ := findSecret(store, node.SecretID)
 				logLine("发布到远程节点 %s -> %s", node.Code, artifact.TargetDir)
-				if err := remoteMkdir(ctx, node, secret, artifact.TargetDir, logLine); err != nil {
-					return err
+				if publishMode == "clean" {
+					logLine("清理远程目标目录: %s", artifact.TargetDir)
+					if err := runShellRemote(ctx, node, secret, "rm -rf "+shQuote(artifact.TargetDir)+" && mkdir -p "+shQuote(artifact.TargetDir), "", logLine); err != nil {
+						return err
+					}
+				} else {
+					if err := remoteMkdir(ctx, node, secret, artifact.TargetDir, logLine); err != nil {
+						return err
+					}
 				}
 				if err := uploadLocalPath(ctx, node, secret, source, artifact.TargetDir, logLine); err != nil {
 					return err
@@ -1715,10 +2050,16 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 				targetDir = filepath.Join(node.BaseDir, targetDir)
 			}
 			logLine("发布到本地节点 %s -> %s", node.Code, targetDir)
+			if publishMode == "clean" {
+				logLine("清理本地目标目录: %s", targetDir)
+				if err := os.RemoveAll(targetDir); err != nil {
+					return err
+				}
+			}
 			if err := os.MkdirAll(targetDir, 0755); err != nil {
 				return err
 			}
-			if err := copyPath(source, filepath.Join(targetDir, filepath.Base(source)), nil); err != nil {
+			if err := copyArtifactContent(source, targetDir); err != nil {
 				return err
 			}
 		}
@@ -1788,6 +2129,20 @@ func redactURL(raw string) string {
 func urlEscape(s string) string {
 	replacer := strings.NewReplacer("%", "%25", "@", "%40", ":", "%3A", "/", "%2F", "?", "%3F", "#", "%23", "&", "%26", "=", "%3D")
 	return replacer.Replace(s)
+}
+
+func wrapBuildEnv(env EnvConfig, script string) string {
+	var parts []string
+	if env.Goos != "" {
+		parts = append(parts, "GOOS="+shQuote(env.Goos))
+	}
+	if env.Goarch != "" {
+		parts = append(parts, "GOARCH="+shQuote(env.Goarch))
+	}
+	if len(parts) == 0 {
+		return script
+	}
+	return "export " + strings.Join(parts, " ") + " && " + script
 }
 
 func runShell(ctx context.Context, script, dir string, logLine func(string, ...any)) error {
@@ -1893,6 +2248,26 @@ func copyPath(src, dst string, skip func(string) bool) error {
 		}
 		return copyFile(path, target, info.Mode())
 	})
+}
+
+func copyArtifactContent(src, targetDir string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return copyPath(src, filepath.Join(targetDir, filepath.Base(src)), nil)
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := copyPath(filepath.Join(src, entry.Name()), filepath.Join(targetDir, entry.Name()), nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func copyFile(src, dst string, mode os.FileMode) error {
@@ -2355,6 +2730,36 @@ func pathDirRemote(path string) string {
 		return "."
 	}
 	return path[:idx]
+}
+
+func localWorkerRoot(worker Worker, node Node) string {
+	dir := worker.WorkDir
+	if dir == "" {
+		dir = filepath.Join(".code-dep", "workspaces")
+	}
+	if !filepath.IsAbs(dir) && node.BaseDir != "" {
+		return filepath.Join(node.BaseDir, dir)
+	}
+	return dir
+}
+
+func localWorkerProjectDir(project Project, worker Worker, node Node) string {
+	return filepath.Join(localWorkerRoot(worker, node), project.Code)
+}
+
+func remoteWorkerRoot(worker Worker, node Node) string {
+	dir := worker.WorkDir
+	if dir == "" {
+		dir = ".code-dep/workspaces"
+	}
+	if strings.HasPrefix(dir, "/") || node.BaseDir == "" {
+		return dir
+	}
+	return strings.TrimRight(node.BaseDir, "/") + "/" + strings.TrimLeft(dir, "/")
+}
+
+func remoteWorkerProjectDir(project Project, worker Worker, node Node) string {
+	return pathJoinRemote(remoteWorkerRoot(worker, node), project.Code)
 }
 
 func localWorkDir(project Project, node Node) string {
@@ -2950,7 +3355,9 @@ func (s *Server) recordLog(id string) []string {
 	if idx := indexRecord(s.store.Records, id); idx >= 0 {
 		r := s.store.Records[idx]
 		log := s.store.loadRecordLog(r.ProjectID, id)
-		if log != nil { return log }
+		if log != nil {
+			return log
+		}
 		return append([]string(nil), r.Log...)
 	}
 	return nil
@@ -3045,6 +3452,25 @@ func indexNode(items []Node, id string) int {
 		}
 	}
 	return -1
+}
+
+func indexWorker(items []Worker, id string) int {
+	for i, item := range items {
+		if item.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func removeString(items []string, value string) []string {
+	out := items[:0]
+	for _, item := range items {
+		if item != value {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func indexNotification(items []Notification, id string) int {

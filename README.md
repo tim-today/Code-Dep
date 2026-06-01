@@ -17,17 +17,32 @@
 
 ## 快速开始
 
-### 直接运行
+### 下载预编译版本
+
+从 [Releases](https://github.com/tim-today/Code-Dep/releases) 页面下载对应平台的压缩包：
+
+- `code-dep-*-linux-amd64.tar.gz` — Linux x86_64
+- `code-dep-*-linux-arm64.tar.gz` — Linux ARM64
+- `code-dep-*-darwin-amd64.tar.gz` — macOS Intel
+- `code-dep-*-darwin-arm64.tar.gz` — macOS Apple Silicon
+- `code-dep-*-windows-amd64.tar.gz` — Windows x86_64
+
+解压后运行：
 
 ```bash
-# 编译
+# Linux / macOS
+tar -xzf code-dep-*.tar.gz && cd code-dep-*
+./code-dep
+
+# Windows
+# 解压后双击 code-dep.exe 或在终端运行
+```
+
+### 从源码编译
+
+```bash
 go build -o server ./cmd/server
-
-# 运行（默认端口 8080）
 ./server
-
-# 自定义端口
-PORT=9000 ./server
 ```
 
 首次启动自动创建默认管理员：`admin` / `123456`，请登录后立即修改密码。
@@ -82,5 +97,5 @@ code-dep/
 
 ## 社区
 
-- [GitHub](https://github.com/timtoday/code-dep)
-- [Issues](https://github.com/timtoday/code-dep/issues)
+- [GitHub](https://github.com/tim-today/Code-Dep)
+- [Issues](https://github.com/tim-today/Code-Dep/issues)

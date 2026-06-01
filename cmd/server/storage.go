@@ -22,6 +22,7 @@ import (
 //	├── system/
 //	│   ├── secrets.json
 //	│   ├── nodes.json
+//	│   ├── workers.json
 //	│   ├── notifications.json
 //	│   ├── users.json
 //	│   └── meta.json          (NextID)
@@ -191,6 +192,20 @@ func (s *Store) loadNodes() error {
 	return nil
 }
 
+func (s *Store) saveWorkers() error {
+	return writeJSON(filepath.Join(s.dataDir, "system", "workers.json"), s.Workers)
+}
+
+func (s *Store) loadWorkers() error {
+	if err := readJSONFile(filepath.Join(s.dataDir, "system", "workers.json"), &s.Workers); err != nil {
+		return err
+	}
+	if s.Workers == nil {
+		s.Workers = []Worker{}
+	}
+	return nil
+}
+
 func (s *Store) saveNotifications() error {
 	notifs := make([]Notification, len(s.Notifications))
 	copy(notifs, s.Notifications)
@@ -304,6 +319,8 @@ type recordMeta struct {
 	Version     string     `json:"version"`
 	Status      string     `json:"status"`
 	Mode        string     `json:"mode"`
+	WorkerID    string     `json:"workerId"`
+	WorkerName  string     `json:"workerName"`
 	LogCount    int        `json:"logCount"`
 	StartedAt   time.Time  `json:"startedAt"`
 	EndedAt     *time.Time `json:"endedAt"`
@@ -320,7 +337,7 @@ func (s *Store) saveRecordIndex(projectID string, records []Record) error {
 		idx[i] = recordMeta{
 			ID: r.ID, ProjectID: r.ProjectID, ProjectName: r.ProjectName,
 			Env: r.Env, Ref: r.Ref, Version: r.Version, Status: r.Status,
-			Mode: r.Mode, LogCount: len(r.Log), StartedAt: r.StartedAt, EndedAt: r.EndedAt,
+			Mode: r.Mode, WorkerID: r.WorkerID, WorkerName: r.WorkerName, LogCount: len(r.Log), StartedAt: r.StartedAt, EndedAt: r.EndedAt,
 		}
 	}
 	return writeJSON(filepath.Join(dir, "index.json"), idx)
@@ -350,7 +367,7 @@ func (s *Store) loadAllRecords() error {
 			r := Record{
 				ID: m.ID, ProjectID: m.ProjectID, ProjectName: m.ProjectName,
 				Env: m.Env, Ref: m.Ref, Version: m.Version, Status: m.Status,
-				Mode: m.Mode, StartedAt: m.StartedAt, EndedAt: m.EndedAt,
+				Mode: m.Mode, WorkerID: m.WorkerID, WorkerName: m.WorkerName, StartedAt: m.StartedAt, EndedAt: m.EndedAt,
 			}
 			s.Records = append(s.Records, r)
 		}
@@ -419,6 +436,9 @@ func (s *Store) saveAll() error {
 	if err := s.saveNodes(); err != nil {
 		return err
 	}
+	if err := s.saveWorkers(); err != nil {
+		return err
+	}
 	if err := s.saveNotifications(); err != nil {
 		return err
 	}
@@ -448,6 +468,7 @@ func migrateFromStoreJSON(store *Store, oldPath string) error {
 		NextID        int64          `json:"nextId"`
 		Secrets       []Secret       `json:"secrets"`
 		Nodes         []Node         `json:"nodes"`
+		Workers       []Worker       `json:"workers"`
 		Notifications []Notification `json:"notifications"`
 		Users         []User         `json:"users"`
 		Projects      []Project      `json:"projects"`
@@ -462,6 +483,7 @@ func migrateFromStoreJSON(store *Store, oldPath string) error {
 	}
 	store.Secrets = old.Secrets
 	store.Nodes = old.Nodes
+	store.Workers = old.Workers
 	store.Notifications = old.Notifications
 	store.Users = old.Users
 	store.Projects = old.Projects
@@ -473,6 +495,9 @@ func migrateFromStoreJSON(store *Store, oldPath string) error {
 	}
 	if store.Nodes == nil {
 		store.Nodes = []Node{}
+	}
+	if store.Workers == nil {
+		store.Workers = []Worker{}
 	}
 	if store.Notifications == nil {
 		store.Notifications = []Notification{}
