@@ -905,4 +905,6 @@ function translatePage() {
     const entry = I18N[key];
     if (entry) el.placeholder = entry[_lang] || entry['en'] || el.placeholder;
   });
+  const langBtn = document.getElementById('langBtn');
+  if (langBtn) langBtn.textContent = _lang === 'zh' ? 'EN' : '中文';
 }

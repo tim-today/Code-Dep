@@ -174,6 +174,19 @@ main {
 }
 .topbar-link:hover { background: var(--surface-mid); color: var(--ink); }
 .topbar-link .material-symbols-outlined { font-size: 18px; }
+.lang-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .15s, border-color .15s;
+}
+.lang-btn:hover { background: var(--surface-mid); border-color: var(--primary); }
 .topbar-icons { display: flex; align-items: center; gap: 8px; }
 .account-btn {
   min-width: 116px;

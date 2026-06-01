@@ -498,15 +498,7 @@ function renderGlobalConfig() {
             <p>发布任务按权重和繁忙状态选择编译器执行编译。</p>
             <strong>${state.workers.length} ${t('global_workers')}</strong>
           </div>
-          <div class="setting-card">
-            <span class="material-symbols-outlined">language</span>
-            <h3>${t('lang_setting')}</h3>
-            <p>${t('lang_hint')}</p>
-            <select onchange="setLang(this.value)" style="margin-top:8px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);font-size:13px;">
-              <option value="en" ${getLang()==="en"?"selected":""}>English</option>
-              <option value="zh" ${getLang()==="zh"?"selected":""}>中文</option>
-            </select>
-          </div>
+
         </div>
       </section>
 
