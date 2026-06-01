@@ -26,7 +26,7 @@
       <button class="primary" type="submit" data-i18n="login_btn">登录</button>
       <p id="loginError" class="error-text"></p>
       <small class="hint" data-i18n="login_hint">首次启动默认账号：admin / 123456，请登录后修改密码。</small>
-      <div style="text-align:center;margin-top:12px;"><button type="button" id="langBtnLogin" class="lang-btn" onclick="setLang(getLang()==='zh'?'en':'zh')" title="Language / 语言">EN</button></div>
+      <div style="text-align:center;margin-top:12px;"><select id="langSelectLogin" class="lang-select" onchange="setLang(this.value)"><option value="en">EN</option><option value="zh">中文</option><option value="zh-TW">繁體</option></select></div>
     </form>
   </section>
   <main>
@@ -42,7 +42,7 @@
         </label>
       </div>
       <div class="topbar-icons">
-        <button id="langBtn" class="lang-btn" type="button" onclick="setLang(getLang()==='zh'?'en':'zh')" title="Language / 语言">EN</button>
+        <select id="langSelect" class="lang-select" onchange="setLang(this.value)"><option value="en">EN</option><option value="zh">中文</option><option value="zh-TW">繁體</option></select>
         <a class="topbar-link" href="https://github.com/tim-today/Code-Dep" target="_blank" title="GitHub"><span class="material-symbols-outlined">open_in_new</span></a>
         <div class="notif-wrap">
           <button id="notifBtn" class="icon" type="button" aria-label="通知"><span class="material-symbols-outlined">notifications_active</span><span id="notifBadge" class="notif-badge" style="display:none">0</span></button>

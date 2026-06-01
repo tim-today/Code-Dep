@@ -174,19 +174,21 @@ main {
 }
 .topbar-link:hover { background: var(--surface-mid); color: var(--ink); }
 .topbar-link .material-symbols-outlined { font-size: 18px; }
-.lang-btn {
-  padding: 4px 10px;
+.lang-select {
+  padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   line-height: 1;
-  transition: background .15s, border-color .15s;
+  outline: none;
+  transition: border-color .15s;
 }
-.lang-btn:hover { background: var(--surface-mid); border-color: var(--primary); }
+.lang-select:hover { border-color: var(--primary); }
+.lang-select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,.12); }
 .topbar-icons { display: flex; align-items: center; gap: 8px; }
 .account-btn {
   min-width: 116px;
