@@ -1710,6 +1710,10 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
 .pipeline-step.running > span { background: var(--primary); color: #fff; box-shadow: 0 0 0 3px rgba(26,115,232,.16); }
 .pipeline-step.running .material-symbols-outlined { animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes loading-nudge {
+  0%, 100% { transform: rotate(-8deg) scale(1); }
+  50% { transform: rotate(8deg) scale(1.08); }
+}
 .log-card {
   min-height: 400px;
   border: 1px solid var(--line);
@@ -1807,7 +1811,14 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
 .history-row.running {
   background: rgba(26,115,232,.05);
 }
-.history-row.running .hi-emoji { animation: spin 1.2s linear infinite; display: inline-flex; }
+.history-row.running .hi-emoji {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  transform-origin: 50% 50%;
+  animation: loading-nudge 1s ease-in-out infinite;
+}
 .history-item {
   flex: 1;
   min-width: 0;
