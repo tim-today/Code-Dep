@@ -106,7 +106,7 @@ function workerName(id) {
 
 function projectWorkerNames(project) {
   const ids = project.build?.workerIds || [];
-  return ids.length ? ids.map(workerName).filter(x => x !== "-").join("、") || "指定 worker" : t('all');
+  return ids.length ? ids.map(workerName).filter(x => x !== "-").join("、") || t('worker_assign') : t('all');
 }
 
 function secretOptions(selected = "") {
@@ -115,11 +115,11 @@ function secretOptions(selected = "") {
 
 function nodeOptions(selected = "") {
   const valid = state.nodes.filter(n => n.status === "valid" || n.id === selected);
-  return `<option value="">${t('select_notification')}</option>${valid.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(n.type)}${n.status !== "valid" ? " · 无效" : ""}</option>`).join("")}`;
+  return `<option value="">${t('select_notification')}</option>${valid.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(n.type)}${n.status !== "valid" ? t("invalid_suffix") : ""}</option>`).join("")}`;
 }
 
 function notificationOptions(selected = "") {
-  return `<option value="">不选择</option>${state.notifications.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(notifyTypeLabel(n.type))}</option>`).join("")}`;
+  return `<option value="">${t('none_select')}</option>${state.notifications.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(notifyTypeLabel(n.type))}</option>`).join("")}`;
 }
 
 function refPicker({ id, optionsId, name = "", value = "", refs = [], disabled = false, refresh = "" }) {
@@ -422,7 +422,7 @@ function renderProjects() {
         <td>${fmt(projectDisplayTime(p))}</td>
       </tr>`).join("")}
     </tbody></table></div>
-    <div class="hint">显示 ${list.length} / ${state.projects.length} 个项目</div>` : `<div class="empty">${t('no_projects')}</div>`;
+    <div class="hint">${t("display_count")} ${list.length} / ${state.projects.length} ${t("of_projects")}</div>` : `<div class="empty">${t('no_projects')}</div>`;
 }
 
 function projectGroups() {
@@ -452,7 +452,7 @@ function maskUrl(url = "") {
 function renderSecrets() {
   $("#content").innerHTML = state.secrets.length ? `
     <section class="card">
-      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">key</span><h2>${t('global_secrets')}</h2></div><button class="primary" onclick="editSecret()">新增秘钥</button></div>
+      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">key</span><h2>${t('global_secrets')}</h2></div><button class="primary" onclick="editSecret()">${t('new_secret_btn')}</button></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('secret_type')}</th><th>${t('secret_account')}</th><th>${t('secret_remark')}</th><th>${t('secret_updated')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
     ${state.secrets.map(s => `<tr>
       <td class="mono"><strong>${esc(s.code)}</strong></td><td><span class="badge">${esc(s.type)}</span></td><td>${esc(s.username || (s.token ? t('secret_token') : "-"))}</td>
@@ -464,7 +464,7 @@ function renderSecrets() {
 function renderNodes() {
   $("#content").innerHTML = state.nodes.length ? `
     <section class="card">
-      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div><button class="primary" onclick="editNode()">新增节点</button></div>
+      <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div><button class="primary" onclick="editNode()">${t('new_node_btn')}</button></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('secret_type')}</th><th>${t('node_address')}</th><th>${t('node_dir')}</th><th>${t('node_secret')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
     ${state.nodes.map(n => `<tr>
       <td class="mono"><strong>${esc(n.code)}</strong><br>${statusBadge(n.status || "unknown")}</td><td><span class="badge">${esc(n.type)}</span></td><td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : "-")}</td>
@@ -482,14 +482,14 @@ function renderGlobalConfig() {
         <div class="settings-grid">
           <div class="setting-card">
             <span class="material-symbols-outlined">notifications_active</span>
-            <h3>通知配置</h3>
+            <h3>${t('notify_config')}</h3>
             <p>支持企业微信和飞书 Hook，项目发布完成后可选择全局通知推送结果。</p>
             <strong>${state.notifications.length} 个通知</strong>
           </div>
           <div class="setting-card">
             <span class="material-symbols-outlined">verified</span>
-            <h3>有效节点</h3>
-            <p>无效节点不会出现在项目发布目标选择中。</p>
+            <h3>${t('valid_nodes')}</h3>
+            <p>${t('valid_nodes_hint')}</p>
             <strong>${state.nodes.filter(n => n.status === "valid").length}/${state.nodes.length}</strong>
           </div>
           <div class="setting-card">
@@ -507,7 +507,7 @@ function renderGlobalConfig() {
           <div class="title-icon"><span class="material-symbols-outlined">manage_accounts</span><h2>${t('global_users')}</h2></div>
           <button class="primary" onclick="editUser()"><span class="material-symbols-outlined">add</span>${t('btn_new_user')}</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>${t('worker_name')}</th><th>${t('user_role')}</th><th>${t('user_perms')}</th><th>${t('remark')}</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t('code')}</th><th>${t('worker_name')}</th><th>${t('user_role')}</th><th>${t('user_perms')}</th><th>${t('remark')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
           ${state.users.map(u => `<tr>
             <td class="mono">${esc(u.code)}</td>
             <td>${esc(u.name)}</td>
@@ -521,7 +521,7 @@ function renderGlobalConfig() {
 
       <section class="card">
         <div class="section-head">
-          <div class="title-icon"><span class="material-symbols-outlined">precision_manufacturing</span><h2>编译器管理</h2></div>
+          <div class="title-icon"><span class="material-symbols-outlined">precision_manufacturing</span><h2>${t('worker_mgmt')}</h2></div>
           <button class="primary" onclick="editWorker()"><span class="material-symbols-outlined">add</span>${t('btn_new_worker')}</button>
         </div>
         <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t('worker_name')}</th><th>${t('worker_node')}</th><th>${t('node_work_dir')}</th><th>${t('worker_weight')}</th><th class="right">操作</th></tr></thead><tbody>
@@ -540,7 +540,7 @@ function renderGlobalConfig() {
           <div class="title-icon"><span class="material-symbols-outlined">key</span><h2>${t('global_secrets')}</h2></div>
           <button class="primary" onclick="editSecret()"><span class="material-symbols-outlined">add</span>新增秘钥</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>类型</th><th>${t('secret_username')}</th><th>值</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t("code")}</th><th>${t('type')}</th><th>${t('secret_username')}</th><th>${t("value_col")}</th><th class="right">操作</th></tr></thead><tbody>
           ${state.secrets.map(s => `<tr>
             <td class="mono">${esc(s.code)}</td>
             <td><span class="badge">${esc(s.type)}</span></td>
@@ -554,15 +554,15 @@ function renderGlobalConfig() {
       <section class="card">
         <div class="section-head">
           <div class="title-icon"><span class="material-symbols-outlined">notifications_active</span><h2>${t('global_notifications')}</h2></div>
-          <button class="primary" onclick="editNotification()"><span class="material-symbols-outlined">add</span>新增通知</button>
+          <button class="primary" onclick="editNotification()"><span class="material-symbols-outlined">add</span>${t('new_notify_btn')}</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>${t('notify_type')}</th><th>${t('notify_hook_url')}</th><th>${t('email')}</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t("code")}</th><th>${t('notify_type')}</th><th>${t('notify_hook_url')}</th><th>${t('email')}</th><th class="right">操作</th></tr></thead><tbody>
           ${state.notifications.map(n => `<tr>
             <td class="mono">${esc(n.code)}</td>
             <td><span class="badge">${esc(notifyTypeLabel(n.type))}</span></td>
             <td class="mono">${esc(maskUrl(n.hookUrl))}</td>
             <td>${n.emailEnabled ? `<span class="badge valid">${t('enabled')}</span><br><small>${esc(n.emailTo)}</small>` : `<span class="badge">否</span>`}</td>
-            <td class="actions"><button class="action-icon" onclick="testNotification('${n.id}')" title="${t('btn_test')}"><span class="material-symbols-outlined">science</span></button><button class="action-icon" onclick="editNotification('${n.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('notifications','${n.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
+            <td class="actions"><button class="action-icon" onclick="testNotification('${n.id}')" title="${t('btn_test')}"><span class="material-symbols-outlined">science</span></button><button class="action-icon" onclick="editNotification('${n.id}')" title=t('modal_title')><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('notifications','${n.id}')" title=t('btn_delete')><span class="material-symbols-outlined">delete</span></button></td>
           </tr>`).join("") || `<tr><td colspan="5" class="empty-cell">${t('empty_notification')}</td></tr>`}
         </tbody></table></div>
       </section>
@@ -572,14 +572,14 @@ function renderGlobalConfig() {
           <div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div>
           <button class="primary" onclick="editNode()"><span class="material-symbols-outlined">add</span>新增节点</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>编码</th><th>类型</th><th>${t('address')}</th><th>${t('status_label')}</th><th>${t('console')}</th><th class="right">操作</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t("code")}</th><th>${t("type")}</th><th>${t('address')}</th><th>${t('status_label')}</th><th>${t('console')}</th><th class="right">操作</th></tr></thead><tbody>
           ${state.nodes.map(n => `<tr>
             <td class="mono">${esc(n.code)}</td>
             <td><span class="badge">${esc(n.type)}</span></td>
             <td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : n.baseDir || "-")}</td>
             <td>${statusBadge(n.status || "unknown")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td>
-            <td><button class="console-btn" onclick="openConsole('${n.id}')"><span class="material-symbols-outlined">terminal</span>Console</button></td>
-            <td class="actions"><button class="action-icon" onclick="editNode('${n.id}')" title="编辑"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('nodes','${n.id}')" title="删除"><span class="material-symbols-outlined">delete</span></button></td>
+            <td><button class="console-btn" onclick="openConsole('${n.id}')"><span class="material-symbols-outlined">terminal</span>${t('console')}</button></td>
+            <td class="actions"><button class="action-icon" onclick="editNode('${n.id}')" title="${t('modal_title')}"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('nodes','${n.id}')" title="${t('btn_delete')}"><span class="material-symbols-outlined">delete</span></button></td>
           </tr>`).join("") || `<tr><td colspan="6" class="empty-cell">${t('empty_node')}</td></tr>`}
         </tbody></table></div>
       </section>
@@ -588,11 +588,11 @@ function renderGlobalConfig() {
 function renderRecords() {
   const records = [...state.records].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
   $("#content").innerHTML = records.length ? `
-    <div class="table-wrap"><table class="table"><thead><tr><th>${t('nav_projects')}</th><th>${t('publish_env')}</th><th>${t('version')}</th><th>${t('ref')}</th><th>${t('mode')}</th><th>状态</th><th>${t('time')}</th><th class="right">操作</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="table"><thead><tr><th>${t('nav_projects')}</th><th>${t('publish_env')}</th><th>${t('version')}</th><th>${t('ref')}</th><th>${t('mode')}</th><th>${t('status_col')}</th><th>${t('time')}</th><th class="right">操作</th></tr></thead><tbody>
     ${records.map(r => `<tr>
       <td>${esc(r.projectName)}</td><td><span class="badge">${esc(r.env)}</span></td><td class="mono">${esc(r.version)}</td><td class="mono">${esc(r.ref || "-")}</td><td>${esc(r.mode)}</td>
       <td>${statusBadge(r.status)}</td><td>${fmt(r.startedAt)}</td>
-      <td class="actions"><button onclick="showRecordLog('${r.id}')">日志</button>${canRunProject(r.projectId) ? `<button onclick="redeploy('${r.id}')">重新部署</button>` : ""}</td>
+      <td class="actions"><button onclick="showRecordLog('${r.id}')">${t('log_label')}</button>${canRunProject(r.projectId) ? `<button onclick="redeploy('${r.id}')">${t('redeploy_label')}</button>` : ""}</td>
     </tr>`).join("")}</tbody></table></div>` : `<div class="empty">暂无发布记录。</div>`;
 }
 
@@ -644,11 +644,11 @@ function renderProjectStatus(project) {
               <h1>${esc(project.name)}</h1>
               ${statusBadge(projectDisplayStatus(project))}
             </div>
-            <p>最后发布：${fmt(projectDisplayTime(project))}（分支/Tag：${esc(project.git?.ref || "-")}，分组：${esc(project.group || "未分组")}）</p>
+            <p>最后发布：${fmt(projectDisplayTime(project))}（分支/Tag：${esc(project.git?.ref || "-")}，分组：${esc(project.group || t('ungrouped'))}）</p>
           </div>
           <div class="detail-actions">
             ${canRun ? `<button class="primary publish-big" onclick="openPublish('${project.id}')">${t('btn_publish')}</button>` : ""}
-            ${canEdit ? `<button class="small-btn" title="编辑" onclick="openProjectDetail('${project.id}', 'edit')"><span class="material-symbols-outlined">edit</span></button>` : ""}
+            ${canEdit ? `<button class="small-btn" title="${t('btn_edit')}" onclick="openProjectDetail('${project.id}', 'edit')"><span class="material-symbols-outlined">edit</span></button>` : ""}
             <button class="small-btn" title="${t('btn_back')}" onclick="backToList()"><span class="material-symbols-outlined">arrow_back</span></button>
           </div>
         </section>
@@ -725,8 +725,8 @@ function historyItem(record) {
     </button>
     <button class="hi-menu-btn" onclick="toggleHistoryMenu('${menuId}', event)" title="${t('col_actions')}"><span class="material-symbols-outlined">more_vert</span></button>
     <div class="hi-menu" id="${menuId}">
-      <button onclick="showRecordLog('${record.id}')"><span class="material-symbols-outlined">terminal</span>日志</button>
-      ${canRedeploy ? `<button onclick="redeploy('${record.id}')"><span class="material-symbols-outlined">replay</span>重新部署</button>` : ""}
+      <button onclick="showRecordLog('${record.id}')"><span class="material-symbols-outlined">terminal</span>${t("log_label")}</button>
+      ${canRedeploy ? `<button onclick="redeploy('${record.id}')"><span class="material-symbols-outlined">replay</span>${t("redeploy_label")}</button>` : ""}
       ${canDelete ? `<button class="danger" onclick="deleteRecord('${record.id}')"><span class="material-symbols-outlined">delete</span>${t('btn_delete')}</button>` : ""}
     </div>
   </div>`;
@@ -827,11 +827,11 @@ function stageSummary(record) {
   const deployDone = logs.some(l => l.includes(t('deploy_sync_done')) || l.includes(t('deploy_success')) || (success && deployStarted));
   const messageSkipped = logs.some(l => l.includes(t('no_notification')));
   const gitDone = buildStarted || buildDone || deployStarted || deployDone || success || logs.some(l => l.includes(t('remote_switch')) || l.includes(t('switch_version')) || l.includes("git checkout") || l.includes(t('preprocess_done')));
-  const messageStarted = messageSkipped || logs.some(l => l.includes("通知") || l.includes(t('stage_message'))) || finalDone;
+  const messageStarted = messageSkipped || logs.some(l => l.includes(t('notify_section')) || l.includes(t('stage_message'))) || finalDone;
 
   // Collect stage boundary timestamps (all time-of-day ms from midnight)
-  const logStart = timeOf("mkdir") || timeOf("克隆源码") || timeOf("git fetch") || timeOf("远程执行");
-  const buildStart = timeOf("执行目标编译命令") || timeOf("mvn ");
+  const logStart = timeOf("mkdir") || timeOf(t('clone_source_label')) || timeOf("git fetch") || timeOf(t('remote_exec_label'));
+  const buildStart = timeOf(t('exec_build_label')) || timeOf("mvn ");
   const deployStart = timeOf(t('publish_to'));
   const messageStart = timeOf(t('btn_send')) || timeOf("通知") || timeOf(t('stage_message'));
   // Last log line timestamp as time-of-day ms
@@ -882,7 +882,7 @@ function stageSummary(record) {
     if (failedStage) statusOf[failedStage] = "failed";
   }
   return {
-    git: { label: t('stage_init'), status: statusOf.git, time: findTime("git fetch") || findTime("切换版本") || findTime(t('label_preprocess')), duration: gitDur },
+    git: { label: t('stage_init'), status: statusOf.git, time: findTime("git fetch") || findTime(t('switch_version_label')) || findTime(t('label_preprocess')), duration: gitDur },
     build: { label: t('stage_build'), status: statusOf.build, time: findTime("执行目标编译命令") || findTime("mvn "), duration: buildDur },
     deploy: { label: t('stage_deploy'), status: statusOf.deploy, time: findTime(t('deploy_to')), duration: deployDur },
     message: { label: t('stage_message'), status: statusOf.message, time: record.endedAt ? fmt(record.endedAt) : "", duration: messageDur }
@@ -984,13 +984,13 @@ function editSecret(id = "") {
   const s = state.secrets.find(x => x.id === id) || { type: "git" };
   openModal(id ? t('edit_secret') : t('btn_new_secret'), `
     <div class="form-grid">
-      <div class="field"><label>编码</label><input name="code" value="${esc(s.code)}"></div>
-      <div class="field"><label>类型</label><select name="type"><option>git</option><option>ssh</option><option>api</option><option>token</option></select></div>
+      <div class="field"><label>${t("code")}</label><input name="code" value="${esc(s.code)}"></div>
+      <div class="field"><label>${t("type")}</label><select name="type"><option>git</option><option>ssh</option><option>api</option><option>token</option></select></div>
       <div class="field"><label>${t('secret_username')}</label><input name="username" value="${esc(s.username)}"></div>
       <div class="field"><label>${t('secret_password')}</label><input name="password" type="password" value="${esc(s.password)}"></div>
       <div class="field full"><label>${t('secret_token')}</label><input name="token" value="${esc(s.token)}"></div>
       <div class="field full"><label>${t('secret_private_key')}</label><textarea name="privateKey">${esc(s.privateKey)}</textarea></div>
-      <div class="field full"><label>备注</label><input name="remark" value="${esc(s.remark)}"></div>
+      <div class="field full"><label>${t('remark')}</label><input name="remark" value="${esc(s.remark)}"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
       await save("secrets", id, data);
@@ -1002,14 +1002,14 @@ function editNode(id = "") {
   const n = state.nodes.find(x => x.id === id) || { type: "local", port: 22 };
   openModal(id ? t('edit_node') : t('btn_new_node'), `
     <div class="form-grid">
-      <div class="field"><label>编码</label><input name="code" value="${esc(n.code)}"></div>
-      <div class="field"><label>类型</label><select name="type"><option value="local">本地目录</option><option value="ssh">${t('node_ssh_remote')}</option></select></div>
+      <div class="field"><label>${t("code")}</label><input name="code" value="${esc(n.code)}"></div>
+      <div class="field"><label>${t("type")}</label><select name="type"><option value="local">${t('local_dir')}</option><option value="ssh">${t('node_ssh_remote')}</option></select></div>
       <div class="field"><label>Host</label><input name="host" value="${esc(n.host)}"></div>
       <div class="field"><label>${t('node_port')}</label><input name="port" type="number" value="${esc(n.port || 22)}"></div>
-      <div class="field"><label>用户</label><input name="user" value="${esc(n.user)}"></div>
+      <div class="field"><label>${t('secret_username')}</label><input name="user" value="${esc(n.user)}"></div>
       <div class="field"><label>${t('node_secret')}</label><select name="secretId">${secretOptions(n.secretId)}</select></div>
       <div class="field full"><label>${t('node_base_dir')}</label><input name="baseDir" value="${esc(n.baseDir)}"></div>
-      <div class="field full"><label>备注</label><input name="remark" value="${esc(n.remark)}"></div>
+      <div class="field full"><label>${t("remark")}</label><input name="remark" value="${esc(n.remark)}"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
       data.port = Number(data.port || 22);
@@ -1022,7 +1022,7 @@ function editWorker(id = "") {
   const w = state.workers.find(x => x.id === id) || { weight: 5 };
   openModal(id ? t('edit_worker') : t('btn_new_worker'), `
     <div class="form-grid">
-      <div class="field"><label>名称</label><input name="name" value="${esc(w.name)}" placeholder="worker-1"></div>
+      <div class="field"><label>${t('worker_name')}</label><input name="name" value="${esc(w.name)}" placeholder="worker-1"></div>
       <div class="field"><label>${t('worker_node')}</label><select name="nodeId">${nodeOptions(w.nodeId)}</select></div>
       <div class="field full"><label>${t('node_work_dir')}</label><input name="workDir" value="${esc(w.workDir)}" placeholder=".code-dep/workspaces 或 /data/workspaces"></div>
       <div class="field"><label>${t('worker_weight')}</label><input name="weight" type="number" min="0" max="9" value="${esc(w.weight ?? 5)}"></div>
@@ -1036,14 +1036,14 @@ function editWorker(id = "") {
 
 function editNotification(id = "") {
   const n = state.notifications.find(x => x.id === id) || { type: "wecom", emailEnabled: false };
-  openModal(id ? t('edit_notification') : "新增通知", `
+  openModal(id ? t('edit_notification') : t('new_notify_btn'), `
     <div class="form-grid">
-      <div class="field"><label>编码</label><input name="code" value="${esc(n.code)}" placeholder="prod-wecom"></div>
+      <div class="field"><label>${t("code")}</label><input name="code" value="${esc(n.code)}" placeholder="prod-wecom"></div>
       <div class="field"><label>${t('notify_type')}</label><select name="type"><option value="wecom">${t('notify_wecom')}</option><option value="feishu">${t('notify_feishu')}</option></select></div>
       <div class="field full"><label>${t('notify_hook_url')}</label><input name="hookUrl" value="${esc(n.hookUrl)}" placeholder="https://..."></div>
-      <div class="field"><label>${t('notify_email')}</label><select name="emailEnabled"><option value="false">否</option><option value="true">是</option></select></div>
+      <div class="field"><label>${t('notify_email')}</label><select name="emailEnabled"><option value="false">${t("no")}</option><option value="true">是</option></select></div>
       <div class="field"><label>${t('notify_email_addr')}</label><input name="emailTo" value="${esc(n.emailTo)}" placeholder="a@company.com,b@company.com"></div>
-      <div class="field full"><label>备注</label><input name="remark" value="${esc(n.remark)}"></div>
+      <div class="field full"><label>${t("remark")}</label><input name="remark" value="${esc(n.remark)}"></div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
       data.emailEnabled = data.emailEnabled === "true";
@@ -1059,17 +1059,17 @@ function editUser(id = "") {
   openModal(id ? t('edit_user') : t('btn_new_user'), `
     <div class="form-grid user-form">
       <div class="field"><label>${t('user_code')}</label><input name="code" value="${esc(u.code)}" placeholder="zhangsan"></div>
-      <div class="field"><label>${t('user_name')}</label><input name="name" value="${esc(u.name)}" placeholder="张三"></div>
+      <div class="field"><label>${t('user_name')}</label><input name="name" value="${esc(u.name)}" placeholder=t('test_data_name')></div>
       <div class="field"><label>${t('user_role')}</label><select name="role"><option value="admin">${t('user_admin')}</option><option value="user">${t('user_normal')}</option></select></div>
-      <div class="field"><label>${t('login_password')}</label><input name="password" type="password" value="" placeholder="${id ? "不修改请留空" : t('new_user_required')}"></div>
-      <div class="field full"><label>备注</label><input name="remark" value="${esc(u.remark)}"></div>
+      <div class="field"><label>${t('login_password')}</label><input name="password" type="password" value="" placeholder="${id ? t('password_placeholder') : t('new_user_required')}"></div>
+      <div class="field full"><label>${t("remark")}</label><input name="remark" value="${esc(u.remark)}"></div>
       <div class="field full">
         <label>${t('user_perms')}</label>
         <div class="perm-editor">
           ${state.projects.map(p => {
             const perm = permByProject.get(p.id) || {};
             return `<div class="perm-row" data-project-id="${p.id}">
-              <div><strong>${esc(p.name)}</strong><small>${esc(p.code || "")} · ${esc(p.group || "未分组")}</small></div>
+              <div><strong>${esc(p.name)}</strong><small>${esc(p.code || "")} · ${esc(p.group || t('ungrouped'))}</small></div>
               <label><input type="checkbox" class="perm-run" ${perm.canRun ? "checked" : ""}> 可运行</label>
               <label><input type="checkbox" class="perm-edit" ${perm.canEdit ? "checked" : ""}> 可修改</label>
             </div>`;
@@ -1148,7 +1148,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
           <h1>发布配置</h1>
         </div>
         <div class="pipeline-actions">
-          ${embedded ? `<button onclick="openProjectDetail('${id}')">${t('cancel')}</button>` : `<button onclick="backToProjects()">取消</button>`}
+          ${embedded ? `<button onclick="openProjectDetail('${id}')">${t('cancel')}</button>` : `<button onclick="backToProjects()">${t('cancel')}</button>`}
           <button class="primary" onclick="saveProject('${id}')"><span class="material-symbols-outlined">save</span>保存配置</button>
         </div>
       </div>
@@ -1176,7 +1176,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
         <div class="repo-command">
           ${commandBlock({
             title: t('label_preprocess'),
-            hint: "Shell 脚本 · 在源码准备后运行，属于初始化阶段",
+            hint: t('preprocess_hint_full'),
             inputClass: "preprocessCmd",
             wrapperClass: "preprocess-command-field",
             checked: preEnabled,
@@ -1189,7 +1189,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
 
       <section class="pipeline-panel">
         <div class="pipeline-panel-head with-action">
-          <div><span class="material-symbols-outlined">dns</span><h2>发布目标</h2></div>
+          <div><span class="material-symbols-outlined">dns</span><h2>${t('target_card_title')}</h2></div>
           <button type="button" onclick="addEnv()"><span class="material-symbols-outlined">add</span>${t('btn_new_target')}</button>
         </div>
         <div id="envRows" class="target-list">${(p.environments || []).map(envRow).join("")}</div>
@@ -1200,7 +1200,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
           <div class="pipeline-panel-head"><span class="material-symbols-outlined">notifications</span><h2>${t('notify')}</h2></div>
           <div class="notify-list">
             <div class="notify-card active">
-              <div><strong><span class="material-symbols-outlined">chat</span>发布通知</strong><small>从全局通知管理选择企业微信或飞书 Hook</small><select name="notify.notificationId">${notificationOptions(p.notify?.notificationId)}</select></div>
+              <div><strong><span class="material-symbols-outlined">chat</span>${t('publish_notification')}</strong><small>${t("notify_select_hint")}</small><select name="notify.notificationId">${notificationOptions(p.notify?.notificationId)}</select></div>
               <button type="button" onclick="testSelectedNotification()">${t('btn_test')}</button>
             </div>
             <small class="hint">请先在全局配置的通知管理中维护通知；旧项目里的直接 Hook 配置仍兼容发送。</small>
@@ -1213,7 +1213,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
             <div class="field"><label>${t('label_retention')}</label><div class="inline-number"><input name="retention.keepReleases" type="number" min="1" value="${esc(p.retention?.keepReleases || 5)}"><span>${t('versions')}</span></div></div>
             <div class="field"><label>${t('publish_mode')}</label><select name="build.publishMode"><option value="overwrite">${t('publish_mode_overwrite')}</option><option value="clean">${t('publish_mode_clean')}</option></select></div>
             <div class="field"><label>${t('label_compile_timeout')}</label><div class="inline-number"><input type="number" value="30" disabled><span>${t('minutes')}</span></div><small class="hint">${t('hint_retention')}</small></div>
-            <div class="field full"><label>编译器</label>${workerPicker(p.build?.workerIds || [])}<small class="hint">指定编译器编译，默认根据繁忙状态分配；不选就是随机。</small></div>
+            <div class="field full"><label>${t('worker_label')}</label>${workerPicker(p.build?.workerIds || [])}<small class="hint">指定编译器编译，默认根据繁忙状态分配；不选就是随机。</small></div>
           </div>
         </section>
       </div>
@@ -1232,7 +1232,7 @@ function envRow(e = { artifacts: [{}] }) {
   const compileDeploy = !!(e.compileDeploy || e.buildCommand);
   return `<div class="target-card env">
     <button type="button" class="target-delete" onclick="this.closest('.env').remove()" title=t('delete_target')><span class="material-symbols-outlined">delete</span></button>
-    <div class="target-title"><span class="material-symbols-outlined">hard_drive</span><strong>发布目标 ${esc(e.name || "sit")}</strong></div>
+    <div class="target-title"><span class="material-symbols-outlined">hard_drive</span><strong>${t("target_card_title")} ${esc(e.name || "sit")}</strong></div>
     <div class="target-grid">
       <div class="field"><label>${t('label_target_env')}</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
       <div class="field"><label>${t('label_target_node')}</label>${targetNodePicker(selected)}</div>
@@ -1241,7 +1241,7 @@ function envRow(e = { artifacts: [{}] }) {
     </div>
     ${commandBlock({
       title: t('label_build_command'),
-      hint: "Shell 脚本 · 在worker节点运行",
+      hint: t('build_cmd_hint'),
       inputClass: "buildCmd",
       wrapperClass: "target-build-command",
       checked: compileDeploy,
@@ -1251,7 +1251,7 @@ function envRow(e = { artifacts: [{}] }) {
     })}
     ${commandBlock({
       title: t('label_deploy_command'),
-      hint: "发布到目标服务器后运行",
+      hint: t('deploy_cmd_hint'),
       inputClass: "deployCmd",
       wrapperClass: "target-deploy-command",
       checked: !!e.deployCommand,
@@ -1278,7 +1278,7 @@ function targetNodeTags(selected = []) {
   if (!selected.length) return `<span class="target-node-empty">${t('all_nodes')}</span>`;
   return selected.map(id => {
     const node = state.nodes.find(n => n.id === id);
-    const label = node ? `${node.code}${node.status !== "valid" ? " · 无效" : ""}` : id;
+    const label = node ? `${node.code}${node.status !== "valid" ? t("invalid_suffix") : ""}` : id;
     return `<span class="node-tag" title="${esc(label)}">${esc(label)}<button type="button" onclick="removeTargetNode(this, '${esc(id)}', event)" title=t('remove')><span class="material-symbols-outlined">close</span></button></span>`;
   }).join("");
 }
@@ -1286,7 +1286,7 @@ function targetNodeTags(selected = []) {
 function targetNodeOptions(selected = []) {
   const nodes = state.nodes.filter(n => n.status === "valid" || selected.includes(n.id));
   return nodes.map(n => `<button type="button" class="target-node-option ${selected.includes(n.id) ? "selected" : ""}" data-id="${esc(n.id)}" data-label="${esc(n.code)} ${esc(n.type)}" onclick="toggleTargetNode(this, event)" ${n.status !== "valid" ? "disabled" : ""}>
-    <span>${esc(n.code)}<small>${esc(n.type)}${n.status !== "valid" ? " · 无效" : ""}</small></span>
+    <span>${esc(n.code)}<small>${esc(n.type)}${n.status !== "valid" ? t("invalid_suffix") : ""}</small></span>
     <span class="material-symbols-outlined">${selected.includes(n.id) ? "check" : "add"}</span>
   </button>`).join("");
 }
@@ -1345,7 +1345,7 @@ function workerPicker(selected = []) {
   if (!state.workers.length) return `<div class="target-node-picker empty"><span class="hint">${t('worker_empty_hint')}</span></div>`;
   return `<div class="target-node-picker worker-picker" data-selected="${esc(selected.join(","))}">
     <div class="target-node-tags">${workerTags(selected)}</div>
-    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>选择</button>
+    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>${t('select')}</button>
     <div class="target-node-dropdown">
       <input class="target-node-filter" placeholder=t('filter') autocomplete="off" oninput="filterTargetNodes(this)">
       <div class="target-node-options">${workerOptions(selected)}</div>
@@ -1593,7 +1593,7 @@ function openTemplateMenu(button, ev) {
   menu.id = "templateMenu";
   menu.className = "template-menu";
   const title = document.createElement("strong");
-  title.textContent = "命令模板";
+  title.textContent = t('cmd_tpl');
   menu.appendChild(title);
   const list = document.createElement("div");
   list.className = "template-menu-list";
@@ -1705,8 +1705,8 @@ function openPublish(id, baseRecord = null) {
   $("#publishModeTag").textContent = baseRecord ? t('publish_redeploy') : t('publish_build');
   $("#publishBody").innerHTML = `
     <div class="publish-form-line">
-      <div class="field"><label>项目</label><input value="${esc(p.name)}" disabled></div>
-      <div class="field"><label>编译器</label>${workerPicker(p.build?.workerIds || [])}</div>
+      <div class="field"><label>${t('nav_projects')}</label><input value="${esc(p.name)}" disabled></div>
+      <div class="field"><label>${t("worker_label")}</label>${workerPicker(p.build?.workerIds || [])}</div>
       <div class="field"><label>${t('label_target_env')}</label><select id="pubEnv">${envOptions}</select></div>
       <div class="field ref-field"><label>${t('publish_ref')}</label>${refPicker({ id: "pubRef", optionsId: "pubRefOptions", value: baseRecord?.ref || p.git?.ref || "", refs, disabled: !!baseRecord, refresh: "refreshPublishRefs()" })}</div>
     </div>`;
@@ -1806,7 +1806,7 @@ function renderLogProgress(record, lines = []) {
 }
 
 function progressStage(key, stage = {}) {
-  const names = { git: t('stage_init'), build: t('stage_build'), deploy: t('stage_deploy'), message: "消息" };
+  const names = { git: t('stage_init'), build: t('stage_build'), deploy: t('stage_deploy'), message: t('stage_message') };
   const status = stage.status || "pending";
   const icon = { success: "✅", failed: "❌", stopped: "⏹", running: "⏳", skipped: "⏭", pending: "○" }[status] || "○";
   return `<div class="progress-stage ${status}"><b>${icon}</b><strong>${names[key]}</strong><span>${stageDurationText(stage)}</span></div>`;
@@ -1924,8 +1924,8 @@ function showRecordLog(id) {
   const headerHtml = publishLogHeader(r, tail)
     .replace(t('publish_log_hint'), extraHint)
     + `<div class="toolbar log-detail-actions">
-        ${canRedeploy ? `<button type="button" class="primary" onclick="redeploy('${r.id}')"><span class="material-symbols-outlined">replay</span>重新部署此版本</button>` : ""}
-        ${canEditProject(r.projectId) && r.status !== "running" ? `<button type="button" class="danger" onclick="deleteRecord('${r.id}')"><span class="material-symbols-outlined">delete</span>删除此记录</button>` : ""}
+        ${canRedeploy ? `<button type="button" class="primary" onclick="redeploy('${r.id}')"><span class="material-symbols-outlined">replay</span>${t('redeploy_version')}</button>` : ""}
+        ${canEditProject(r.projectId) && r.status !== "running" ? `<button type="button" class="danger" onclick="deleteRecord('${r.id}')"><span class="material-symbols-outlined">delete</span>${t('delete_record')}</button>` : ""}
       </div>`;
   $("#publishBody").innerHTML = headerHtml;
   resetLiveLog(tail);
@@ -1946,8 +1946,8 @@ function isStaleRunningRecord(record) {
 function showProjectLogs(projectId) {
   const p = state.projects.find(x => x.id === projectId);
   const records = state.records.filter(r => r.projectId === projectId).sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-  $("#publishBody").innerHTML = `<div class="toolbar"><strong>${esc(p?.name || "")} 发布日志</strong>${records.map(r => `<button type="button" onclick="showRecordLog('${r.id}')">${esc(r.env)} · ${esc(r.version)} · ${esc(r.status)}</button>`).join("")}</div>`;
-  resetLiveLog(records.length ? records.flatMap(r => [`# ${r.env} ${r.version} ${r.status} ${fmt(r.startedAt)}`, ...(r.log || []).slice(-200)]).slice(-LOG_LIMIT) : ["暂无发布日志"]);
+  $("#publishBody").innerHTML = `<div class="toolbar"><strong>${esc(p?.name || "")} ${t("publish_log_title")}</strong>${records.map(r => `<button type="button" onclick="showRecordLog('${r.id}')">${esc(r.env)} · ${esc(r.version)} · ${esc(r.status)}</button>`).join("")}</div>`;
+  resetLiveLog(records.length ? records.flatMap(r => [`# ${r.env} ${r.version} ${r.status} ${fmt(r.startedAt)}`, ...(r.log || []).slice(-200)]).slice(-LOG_LIMIT) : [t('no_log')]);
   $("#startPublish").style.display = "none";
   $("#publishModal").showModal();
 }
@@ -1957,7 +1957,7 @@ function openConsole(nodeId) {
   if (!node) return;
   if (node.status !== "valid") return alert(t('node_invalid_hint'));
   const modal = $("#consoleModal");
-  $("#consoleNodeName").textContent = `控制台: ${node.code} (${node.type === "ssh" ? node.host : node.baseDir || t('node_local')})`;
+  $("#consoleNodeName").textContent = `${t('console_title')}${node.code} (${node.type === "ssh" ? node.host : node.baseDir || t('node_local')})`;
   $("#consoleStatus").textContent = t('node_connecting');
   $("#consoleStatus").className = "badge running";
   modal.showModal();
@@ -2022,7 +2022,7 @@ function initConsoleTerminal(nodeId) {
   ws.onclose = () => {
     $("#consoleStatus").textContent = t('node_disconnected');
     $("#consoleStatus").className = "badge";
-    term.write("\r\n\x1b[33m[连接已断开]\x1b[0m\r\n");
+    term.write("\r\n\x1b[33m[${t('terminal_disconnected')}]\x1b[0m\r\n");
     consoleSocket = null;
   };
 

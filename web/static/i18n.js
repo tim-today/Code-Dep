@@ -865,9 +865,9 @@ const I18N = {
     "zh-TW": "通知測試成功"
   },
   "notify_select_hint": {
-    "zh": "请先选择通知",
-    "en": "Select a notification first",
-    "zh-TW": "請先選擇通知"
+    "zh": "从全局通知管理选择企业微信或飞书 Hook",
+    "en": "Select WeCom or Feishu Hook from global notifications",
+    "zh-TW": "從全域通知管理選擇企業微信或飛書 Hook"
   },
   "tpl_save_current": {
     "zh": "保存当前为模板",
@@ -1408,14 +1408,239 @@ const I18N = {
     "zh": "繁體中文",
     "en": "繁體中文",
     "zh-TW": "繁體中文"
+  },
+  "code": {
+    "zh": "编码",
+    "en": "Code",
+    "zh-TW": "編碼"
+  },
+  "type": {
+    "zh": "类型",
+    "en": "Type",
+    "zh-TW": "類型"
+  },
+  "status_col": {
+    "zh": "状态",
+    "en": "Status",
+    "zh-TW": "狀態"
+  },
+  "email_col": {
+    "zh": "邮件",
+    "en": "Email",
+    "zh-TW": "郵件"
+  },
+  "value_col": {
+    "zh": "值",
+    "en": "Value",
+    "zh-TW": "值"
+  },
+  "display_count": {
+    "zh": "显示",
+    "en": "Showing",
+    "zh-TW": "顯示"
+  },
+  "of_projects": {
+    "zh": "个项目",
+    "en": "projects",
+    "zh-TW": "個專案"
+  },
+  "none_select": {
+    "zh": "不选择",
+    "en": "None",
+    "zh-TW": "不選擇"
+  },
+  "local_dir": {
+    "zh": "本地目录",
+    "en": "Local Dir",
+    "zh-TW": "本機目錄"
+  },
+  "publish_notification": {
+    "zh": "发布通知",
+    "en": "Publish Notify",
+    "zh-TW": "發佈通知"
+  },
+  "deploy_target": {
+    "zh": "发布目标",
+    "en": "Deploy Target",
+    "zh-TW": "發佈目標"
+  },
+  "worker_label": {
+    "zh": "编译器",
+    "en": "Worker",
+    "zh-TW": "編譯器"
+  },
+  "redeploy_version": {
+    "zh": "重新部署此版本",
+    "en": "Redeploy this version",
+    "zh-TW": "重新部署此版本"
+  },
+  "delete_record": {
+    "zh": "删除此记录",
+    "en": "Delete this record",
+    "zh-TW": "刪除此記錄"
+  },
+  "log_label": {
+    "zh": "日志",
+    "en": "Log",
+    "zh-TW": "日誌"
+  },
+  "redeploy_label": {
+    "zh": "重新部署",
+    "en": "Redeploy",
+    "zh-TW": "重新部署"
+  },
+  "password_placeholder": {
+    "zh": "不修改请留空",
+    "en": "Leave empty to keep",
+    "zh-TW": "不修改請留空"
+  },
+  "test_data_name": {
+    "zh": "张三",
+    "en": "John",
+    "zh-TW": "張三"
+  },
+  "valid_nodes": {
+    "zh": "有效节点",
+    "en": "Valid Nodes",
+    "zh-TW": "有效節點"
+  },
+  "valid_nodes_hint": {
+    "zh": "无效节点不会出现在项目发布目标选择中。",
+    "en": "Invalid nodes won't appear in deploy targets.",
+    "zh-TW": "無效節點不會出現在專案發佈目標選擇中。"
+  },
+  "notify_config": {
+    "zh": "通知配置",
+    "en": "Notifications",
+    "zh-TW": "通知配置"
+  },
+  "notify_config_hint": {
+    "zh": "支持企业微信和飞书 Hook，项目发布完成后可选择全局通知推送结果。",
+    "en": "WeCom/Feishu webhook. Send after publish completes.",
+    "zh-TW": "支援企業微信和飛書 Hook，專案發佈完成後可選擇全域通知推送結果。"
+  },
+  "notifications_count": {
+    "zh": "个通知",
+    "en": "notifications",
+    "zh-TW": "個通知"
+  },
+  "valid_count": {
+    "zh": "有效",
+    "en": "valid",
+    "zh-TW": "有效"
+  },
+  "secret_mgmt": {
+    "zh": "秘钥管理",
+    "en": "Secrets",
+    "zh-TW": "密鑰管理"
+  },
+  "node_mgmt": {
+    "zh": "节点管理",
+    "en": "Nodes",
+    "zh-TW": "節點管理"
+  },
+  "worker_mgmt": {
+    "zh": "编译器管理",
+    "en": "Workers",
+    "zh-TW": "編譯器管理"
+  },
+  "new_secret_btn": {
+    "zh": "新增秘钥",
+    "en": "New Secret",
+    "zh-TW": "新增密鑰"
+  },
+  "new_node_btn": {
+    "zh": "新增节点",
+    "en": "New Node",
+    "zh-TW": "新增節點"
+  },
+  "new_notify_btn": {
+    "zh": "新增通知",
+    "en": "New Notification",
+    "zh-TW": "新增通知"
+  },
+  "git_status_testing": {
+    "zh": "正在验证...",
+    "en": "Testing...",
+    "zh-TW": "正在驗證..."
+  },
+  "compile_deploy": {
+    "zh": "编译发布",
+    "en": "Build & Deploy",
+    "zh-TW": "編譯發佈"
+  },
+  "target_card_title": {
+    "zh": "发布目标",
+    "en": "Deploy Target",
+    "zh-TW": "發佈目標"
+  },
+  "build_cmd_hint": {
+    "zh": "Shell 脚本 · 在worker节点运行",
+    "en": "Shell script · Runs on worker node",
+    "zh-TW": "Shell 腳本 · 在worker節點運行"
+  },
+  "preprocess_hint_full": {
+    "zh": "Shell 脚本 · 在源码准备后运行，属于初始化阶段",
+    "en": "Shell script · Runs after source prep, init stage",
+    "zh-TW": "Shell 腳本 · 在源碼準備後運行，屬於初始化階段"
+  },
+  "deploy_cmd_hint": {
+    "zh": "发布到目标服务器后运行",
+    "en": "Runs after deploy to target server",
+    "zh-TW": "發佈到目標伺服器後運行"
+  },
+  "cmd_tpl": {
+    "zh": "命令模板",
+    "en": "Templates",
+    "zh-TW": "命令範本"
+  },
+  "notify_section": {
+    "zh": "通知",
+    "en": "Notify",
+    "zh-TW": "通知"
+  },
+  "clone_source_label": {
+    "zh": "克隆源码",
+    "en": "Clone source",
+    "zh-TW": "克隆源碼"
+  },
+  "remote_exec_label": {
+    "zh": "远程执行",
+    "en": "Remote exec",
+    "zh-TW": "遠端執行"
+  },
+  "exec_build_label": {
+    "zh": "执行目标编译命令",
+    "en": "Run build command",
+    "zh-TW": "執行目標編譯命令"
+  },
+  "switch_version_label": {
+    "zh": "切换版本",
+    "en": "Switch version",
+    "zh-TW": "切換版本"
+  },
+  "publish_log_title": {
+    "zh": "发布日志",
+    "en": "Publish Logs",
+    "zh-TW": "發佈日誌"
+  },
+  "console_title": {
+    "zh": "控制台: ",
+    "en": "Console: ",
+    "zh-TW": "控制台: "
+  },
+  "worker_assign": {
+    "zh": "指定 worker",
+    "en": "Assign worker",
+    "zh-TW": "指定 worker"
+  },
+  "workspace_path": {
+    "zh": ".code-dep/workspaces 或 /data/workspaces",
+    "en": ".code-dep/workspaces or /data/workspaces",
+    "zh-TW": ".code-dep/workspaces 或 /data/workspaces"
   }
 };
 
-let _lang = localStorage.getItem('lang');
-if (!_lang) {
-  const bl = navigator.language || navigator.userLanguage || 'en';
-  _lang = bl.startsWith('zh-TW') || bl.startsWith('zh-Hant') ? 'zh-TW' : bl.startsWith('zh') ? 'zh' : 'en';
-}
 
 function t(key) {
   const entry = I18N[key];
