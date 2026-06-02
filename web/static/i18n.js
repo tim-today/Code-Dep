@@ -264,6 +264,26 @@ const I18N = {
     "en": "Showing recent logs. Running tasks can be stopped.",
     "zh-TW": "僅顯示最近日誌，執行中可強制終止。"
   },
+  "raw_log": {
+    "zh": "Raw 日志",
+    "en": "Raw Log",
+    "zh-TW": "Raw 日誌"
+  },
+  "raw_log_title": {
+    "zh": "Raw 日志",
+    "en": "Raw Log",
+    "zh-TW": "Raw 日誌"
+  },
+  "raw_log_copy": {
+    "zh": "复制",
+    "en": "Copy",
+    "zh-TW": "複製"
+  },
+  "raw_log_copied": {
+    "zh": "已复制",
+    "en": "Copied",
+    "zh-TW": "已複製"
+  },
   "publish_env": {
     "zh": "环境",
     "en": "Environment",
@@ -794,6 +814,16 @@ const I18N = {
     "en": "Permissions",
     "zh-TW": "專案授權"
   },
+  "user_node_perms": {
+    "zh": "节点授权",
+    "en": "Node Access",
+    "zh-TW": "節點授權"
+  },
+  "user_node_perm_hint": {
+    "zh": "普通用户发布时只能使用已授权目标服务器。",
+    "en": "Regular users can publish only to authorized target servers.",
+    "zh-TW": "一般使用者發佈時只能使用已授權目標伺服器。"
+  },
   "user_admin": {
     "zh": "管理员",
     "en": "Admin",
@@ -805,19 +835,24 @@ const I18N = {
     "zh-TW": "一般使用者"
   },
   "user_admin_hint": {
-    "zh": "管理员拥有全部项目权限，无需单独授权。",
-    "en": "Admins have full access to all projects.",
-    "zh-TW": "管理員擁有全部專案權限，無需單獨授權。"
+    "zh": "管理员拥有全部项目和节点权限，无需单独授权。",
+    "en": "Admins have full access to all projects and nodes.",
+    "zh-TW": "管理員擁有全部專案和節點權限，無需單獨授權。"
   },
   "user_normal_hint": {
-    "zh": "普通用户仅能操作已授权项目。",
-    "en": "Regular users can only access authorized projects.",
-    "zh-TW": "一般使用者僅能操作已授權專案。"
+    "zh": "普通用户仅能操作已授权项目和目标服务器。",
+    "en": "Regular users can only access authorized projects and target servers.",
+    "zh-TW": "一般使用者僅能操作已授權專案和目標伺服器。"
   },
   "user_no_perm": {
     "zh": "无授权",
     "en": "No Access",
     "zh-TW": "無授權"
+  },
+  "user_no_node_perm": {
+    "zh": "无节点授权",
+    "en": "No Node Access",
+    "zh-TW": "無節點授權"
   },
   "user_can_run": {
     "zh": "可运行",
@@ -1098,6 +1133,11 @@ const I18N = {
     "zh": " · 无效",
     "en": " · Invalid",
     "zh-TW": " · 無效"
+  },
+  "unauthorized_suffix": {
+    "zh": " · 未授权",
+    "en": " · Unauthorized",
+    "zh-TW": " · 未授權"
   },
   "build_in_worker_dir": {
     "zh": "Shell 脚本 · 在worker节点运行",

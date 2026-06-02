@@ -53,16 +53,19 @@ type Store struct {
 }
 
 type Secret struct {
-	ID         string    `json:"id"`
-	Code       string    `json:"code"`
-	Type       string    `json:"type"`
-	Username   string    `json:"username"`
-	Password   string    `json:"password"`
-	Token      string    `json:"token"`
-	PrivateKey string    `json:"privateKey"`
-	Remark     string    `json:"remark"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID            string    `json:"id"`
+	Code          string    `json:"code"`
+	Type          string    `json:"type"`
+	Username      string    `json:"username"`
+	Password      string    `json:"password"`
+	Token         string    `json:"token"`
+	PrivateKey    string    `json:"privateKey"`
+	HasPassword   bool      `json:"hasPassword,omitempty"`
+	HasToken      bool      `json:"hasToken,omitempty"`
+	HasPrivateKey bool      `json:"hasPrivateKey,omitempty"`
+	Remark        string    `json:"remark"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 type Node struct {
@@ -110,6 +113,7 @@ type User struct {
 	Role         string        `json:"role"`
 	Password     string        `json:"password"`
 	ProjectPerms []ProjectPerm `json:"projectPerms"`
+	NodeIDs      []string      `json:"nodeIds"`
 	Remark       string        `json:"remark"`
 	CreatedAt    time.Time     `json:"createdAt"`
 	UpdatedAt    time.Time     `json:"updatedAt"`
@@ -685,10 +689,22 @@ func hasProjectAccess(user User, projectID, action string) bool {
 	return false
 }
 
+func hasNodeAccess(user User, nodeID string) bool {
+	if user.Role == "admin" {
+		return true
+	}
+	for _, id := range user.NodeIDs {
+		if id == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) bootstrapForUserLocked(user User) bootstrapPayload {
 	payload := bootstrapPayload{
 		CurrentUser:   sanitizeUser(user),
-		Secrets:       append([]Secret(nil), s.store.Secrets...),
+		Secrets:       sanitizeSecrets(s.store.Secrets),
 		Nodes:         append([]Node(nil), s.store.Nodes...),
 		Workers:       append([]Worker(nil), s.store.Workers...),
 		Notifications: append([]Notification(nil), s.store.Notifications...),
@@ -698,11 +714,6 @@ func (s *Server) bootstrapForUserLocked(user User) bootstrapPayload {
 	if user.Role == "admin" {
 		payload.Users = sanitizeUsers(s.store.Users)
 		return payload
-	}
-	for i := range payload.Secrets {
-		payload.Secrets[i].Password = ""
-		payload.Secrets[i].Token = ""
-		payload.Secrets[i].PrivateKey = ""
 	}
 	return payload
 }
@@ -739,6 +750,34 @@ func sanitizeUsers(users []User) []User {
 		out[i] = sanitizeUser(user)
 	}
 	return out
+}
+
+func sanitizeSecrets(secrets []Secret) []Secret {
+	out := make([]Secret, len(secrets))
+	for i, secret := range secrets {
+		out[i] = sanitizeSecret(secret)
+	}
+	return out
+}
+
+func sanitizeSecret(secret Secret) Secret {
+	secret.HasPassword = secret.Password != ""
+	secret.HasToken = secret.Token != ""
+	secret.HasPrivateKey = secret.PrivateKey != ""
+	secret.Password = ""
+	secret.Token = ""
+	secret.PrivateKey = ""
+	return secret
+}
+
+func sameSecret(a, b Secret) bool {
+	return a.Code == b.Code &&
+		a.Type == b.Type &&
+		a.Username == b.Username &&
+		a.Password == b.Password &&
+		a.Token == b.Token &&
+		a.PrivateKey == b.PrivateKey &&
+		a.Remark == b.Remark
 }
 
 func sanitizeUser(user User) User {
@@ -804,7 +843,7 @@ func (s *Server) secrets(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		s.store.mu.RLock()
 		defer s.store.mu.RUnlock()
-		respond(w, s.store.Secrets)
+		respond(w, sanitizeSecrets(s.store.Secrets))
 	case http.MethodPost:
 		var item Secret
 		if err := readJSON(r, &item); err != nil {
@@ -825,7 +864,7 @@ func (s *Server) secrets(w http.ResponseWriter, r *http.Request) {
 			fail(w, 500, err.Error())
 			return
 		}
-		respond(w, item)
+		respond(w, sanitizeSecret(item))
 	default:
 		fail(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
@@ -850,8 +889,23 @@ func (s *Server) secretByID(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, err.Error())
 			return
 		}
+		old := s.store.Secrets[idx]
 		item.ID = id
-		item.CreatedAt = s.store.Secrets[idx].CreatedAt
+		item.CreatedAt = old.CreatedAt
+		item.UpdatedAt = old.UpdatedAt
+		if item.Password == "" {
+			item.Password = old.Password
+		}
+		if item.Token == "" {
+			item.Token = old.Token
+		}
+		if item.PrivateKey == "" {
+			item.PrivateKey = old.PrivateKey
+		}
+		if sameSecret(old, item) {
+			respond(w, map[string]bool{"ok": true})
+			return
+		}
 		item.UpdatedAt = time.Now()
 		s.store.Secrets[idx] = item
 	case http.MethodDelete:
@@ -1266,6 +1320,7 @@ func normalizeUser(item *User) {
 	}
 	if item.Role == "admin" {
 		item.ProjectPerms = nil
+		item.NodeIDs = nil
 		return
 	}
 	perms := item.ProjectPerms[:0]
@@ -1279,6 +1334,17 @@ func normalizeUser(item *User) {
 		perms = append(perms, perm)
 	}
 	item.ProjectPerms = perms
+	nodeIDs := item.NodeIDs[:0]
+	seenNodes := map[string]bool{}
+	for _, id := range item.NodeIDs {
+		id = strings.TrimSpace(id)
+		if id == "" || seenNodes[id] {
+			continue
+		}
+		seenNodes[id] = true
+		nodeIDs = append(nodeIDs, id)
+	}
+	item.NodeIDs = nodeIDs
 }
 
 func validateUser(item User) error {
@@ -1478,12 +1544,26 @@ func (s *Server) records(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recordByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
+	if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 		fail(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/records/")
 	user, _ := s.currentUser(r)
+	if r.Method == http.MethodGet {
+		record, ok := s.recordByIDValue(id)
+		if !ok {
+			fail(w, 404, "发布记录不存在")
+			return
+		}
+		if !hasProjectAccess(user, record.ProjectID, "view") {
+			fail(w, http.StatusForbidden, "没有项目访问权限")
+			return
+		}
+		record.Log = s.recordLog(id)
+		respond(w, record)
+		return
+	}
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
 	idx := indexRecord(s.store.Records, id)
@@ -1530,6 +1610,10 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 	project, env, baseRecord, err := s.preparePublish(req)
 	if err != nil {
 		fail(w, 400, err.Error())
+		return
+	}
+	if err := s.requireEnvNodePerm(initiator, env); err != nil {
+		fail(w, http.StatusForbidden, err.Error())
 		return
 	}
 	var worker Worker
@@ -1642,6 +1726,27 @@ func (s *Server) preparePublish(req publishRequest) (Project, EnvConfig, *Record
 		return project, env, &base, nil
 	}
 	return project, env, nil, nil
+}
+
+func (s *Server) requireEnvNodePerm(user User, env EnvConfig) error {
+	if user.Role == "admin" {
+		return nil
+	}
+	s.store.mu.RLock()
+	defer s.store.mu.RUnlock()
+	for _, artifact := range env.Artifacts {
+		for _, nodeID := range artifact.NodeIDs {
+			if hasNodeAccess(user, nodeID) {
+				continue
+			}
+			label := nodeID
+			if idx := indexNode(s.store.Nodes, nodeID); idx >= 0 {
+				label = s.store.Nodes[idx].Code
+			}
+			return fmt.Errorf("没有目标节点发布权限: %s", label)
+		}
+	}
+	return nil
 }
 
 func (s *Server) registerPublish(id string, cancel context.CancelFunc) {

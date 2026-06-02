@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,6 +111,112 @@ func TestBuildNotificationTextIncludesPublishDetails(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("notification text missing %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestRecordByIDGetReturnsFullPersistedLog(t *testing.T) {
+	dir := t.TempDir()
+	projectID := "project-1"
+	recordID := "record-1"
+	if err := os.MkdirAll(recordsDir(dir, projectID), 0755); err != nil {
+		t.Fatalf("create records dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(recordsDir(dir, projectID), recordID+".log"), []byte("line 1\nline 2\nline 3\n"), 0600); err != nil {
+		t.Fatalf("write log file: %v", err)
+	}
+	server := &Server{
+		store: &Store{
+			dataDir: dir,
+			Users:   []User{{ID: "u1", Role: "admin"}},
+			Records: []Record{{
+				ID:          recordID,
+				ProjectID:   projectID,
+				ProjectName: "demo",
+				Log:         []string{"memory tail"},
+				StartedAt:   time.Now(),
+			}},
+		},
+		sessions: map[string]Session{"sid": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/records/"+recordID, nil)
+	req.AddCookie(&http.Cookie{Name: "qfb_session", Value: "sid"})
+	rr := httptest.NewRecorder()
+
+	server.recordByID(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var got Record
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	want := []string{"line 1", "line 2", "line 3"}
+	if strings.Join(got.Log, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("log = %#v, want %#v", got.Log, want)
+	}
+}
+
+func TestSecretResponsesAreSanitized(t *testing.T) {
+	got := sanitizeSecret(Secret{Password: "pass", Token: "tok", PrivateKey: "key"})
+	if got.Password != "" || got.Token != "" || got.PrivateKey != "" {
+		t.Fatalf("secret response leaked sensitive values: %#v", got)
+	}
+	if !got.HasPassword || !got.HasToken || !got.HasPrivateKey {
+		t.Fatalf("secret response missing value markers: %#v", got)
+	}
+}
+
+func TestSecretUpdatePreservesSensitiveFieldsWhenOmitted(t *testing.T) {
+	updatedAt := time.Date(2026, 6, 2, 10, 0, 0, 0, time.Local)
+	server := &Server{
+		store: &Store{
+			Users: []User{{ID: "u1", Role: "admin"}},
+			Secrets: []Secret{{
+				ID:         "sec1",
+				Code:       "git-prod",
+				Type:       "git",
+				Username:   "deploy",
+				Password:   "password",
+				Token:      "token",
+				PrivateKey: "private-key",
+				Remark:     "remark",
+				CreatedAt:  updatedAt,
+				UpdatedAt:  updatedAt,
+			}},
+		},
+		sessions: map[string]Session{"sid": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+	req := httptest.NewRequest(http.MethodPut, "/api/secrets/sec1", strings.NewReader(`{"code":"git-prod","type":"git","username":"deploy","remark":"remark"}`))
+	req.AddCookie(&http.Cookie{Name: "qfb_session", Value: "sid"})
+	rr := httptest.NewRecorder()
+
+	server.secretByID(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	got := server.store.Secrets[0]
+	if got.Password != "password" || got.Token != "token" || got.PrivateKey != "private-key" {
+		t.Fatalf("sensitive fields were overwritten: %#v", got)
+	}
+	if !got.UpdatedAt.Equal(updatedAt) {
+		t.Fatalf("unchanged secret updatedAt = %s, want %s", got.UpdatedAt, updatedAt)
+	}
+}
+
+func TestRequireEnvNodePermForRegularUser(t *testing.T) {
+	server := &Server{store: &Store{Nodes: []Node{{ID: "node1", Code: "prod-a"}, {ID: "node2", Code: "prod-b"}}}}
+	user := User{ID: "u1", Role: "user", NodeIDs: []string{"node1"}}
+	env := EnvConfig{Artifacts: []ArtifactRule{{NodeIDs: []string{"node1", "node2"}}}}
+
+	err := server.requireEnvNodePerm(user, env)
+
+	if err == nil || !strings.Contains(err.Error(), "prod-b") {
+		t.Fatalf("expected unauthorized node error for prod-b, got %v", err)
+	}
+	if err := server.requireEnvNodePerm(User{Role: "admin"}, env); err != nil {
+		t.Fatalf("admin should access all nodes: %v", err)
 	}
 }
 

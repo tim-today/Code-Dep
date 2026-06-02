@@ -569,11 +569,25 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   max-height: calc(100vh - 32px);
   overflow: hidden;
 }
+.raw-log-dialog {
+  width: min(1180px, calc(100vw - 32px));
+  height: min(820px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
 .publish-workspace {
   height: 100%;
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 20px;
+}
+.raw-log-workspace {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
   padding: 20px;
 }
@@ -605,6 +619,19 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   color: #f8f8f2;
   border-radius: 4px;
   white-space: pre-wrap;
+  font: 13px/1.6 var(--mono);
+}
+.raw-log {
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  overflow: auto;
+  padding: 14px;
+  background: var(--log-bg);
+  color: #f8f8f2;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  white-space: pre;
   font: 13px/1.6 var(--mono);
 }
 .log-toolbar {
@@ -1223,6 +1250,11 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   color: var(--ink);
   font-size: 12px;
   font-weight: 600;
+}
+.node-tag.disabled {
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  background: transparent;
 }
 .node-tag button {
   width: 16px;

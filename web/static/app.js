@@ -10,6 +10,7 @@ const LOG_LIMIT = 1200;
 const LOG_TAIL = 800;
 const STALE_RUNNING_MS = 35 * 60 * 1000;
 const CUSTOM_TEMPLATE_KEY = "qfb_command_templates";
+const SECRET_MASK = "********";
 let logLines = [];
 let logPending = [];
 let logFlushTimer = null;
@@ -237,11 +238,13 @@ function roleLabel(role) {
 
 function userPermSummary(u) {
   if (u.role === "admin") return t('all_projects');
-  return (u.projectPerms || []).map(p => {
+  const projects = (u.projectPerms || []).map(p => {
     const proj = state.projects.find(x => x.id === p.projectId);
     const flags = [p.canRun ? t('run') : "", p.canEdit ? t('change') : ""].filter(Boolean).join("/");
     return proj ? `${proj.name}(${flags})` : "";
   }).filter(Boolean).join("、") || t('user_no_perm');
+  const nodes = (u.nodeIds || []).map(nodeName).filter(x => x !== "-").join("、") || t('user_no_node_perm');
+  return `${projects} · ${t('user_node_perms')}: ${nodes}`;
 }
 
 function projectPerm(projectId) {
@@ -255,6 +258,10 @@ function canRunProject(projectId) {
 
 function canEditProject(projectId) {
   return !!projectPerm(projectId).canEdit;
+}
+
+function canUseNode(nodeId) {
+  return isAdmin() || (state.currentUser?.nodeIds || []).includes(nodeId);
 }
 
 function renderLogin() {
@@ -456,7 +463,7 @@ function renderSecrets() {
       <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">key</span><h2>${t('global_secrets')}</h2></div><button class="primary" onclick="editSecret()">${t('new_secret_btn')}</button></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('secret_type')}</th><th>${t('secret_account')}</th><th>${t('secret_remark')}</th><th>${t('secret_updated')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
     ${state.secrets.map(s => `<tr>
-      <td class="mono"><strong>${esc(s.code)}</strong></td><td><span class="badge">${esc(s.type)}</span></td><td>${esc(s.username || (s.token ? t('secret_token') : "-"))}</td>
+      <td class="mono"><strong>${esc(s.code)}</strong></td><td><span class="badge">${esc(s.type)}</span></td><td>${esc(s.username || (s.hasToken ? t('secret_token') : "-"))}</td>
       <td>${esc(s.remark || "-")}</td><td>${fmt(s.updatedAt)}</td>
       <td class="actions"><button class="action-icon" title="${t('btn_edit')}" onclick="editSecret('${s.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="${t('btn_delete')}" onclick="removeItem('secrets','${s.id}')"><span class="material-symbols-outlined">delete</span></button></td>
     </tr>`).join("")}</tbody></table></div></section>` : `<div class="empty">${t('empty_secrets')}</div>`;
@@ -546,7 +553,7 @@ function renderGlobalConfig() {
             <td class="mono">${esc(s.code)}</td>
             <td><span class="badge">${esc(s.type)}</span></td>
             <td>${esc(s.username || "-")}</td>
-            <td class="mono muted-value">${s.password || s.token || s.privateKey ? "••••••••••••" : "-"}</td>
+            <td class="mono muted-value">${hasSecretValue(s) ? "********" : "-"}</td>
             <td class="actions"><button class="action-icon" onclick="editSecret('${s.id}')" title="${t('modal_title')}"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('secrets','${s.id}')" title="${t('btn_delete')}"><span class="material-symbols-outlined">delete</span></button></td>
           </tr>`).join("") || `<tr><td colspan="5" class="empty-cell">${t('empty_secret')}</td></tr>`}
         </tbody></table></div>
@@ -983,19 +990,49 @@ function formData(form) {
   return data;
 }
 
+function hasSecretValue(secret = {}) {
+  return Boolean(secret.hasPassword || secret.hasToken || secret.hasPrivateKey || secret.password || secret.token || secret.privateKey);
+}
+
+function secretMaskValue(secret = {}, key) {
+  const flag = { password: "hasPassword", token: "hasToken", privateKey: "hasPrivateKey" }[key];
+  return secret[flag] || secret[key] ? SECRET_MASK : "";
+}
+
+function clearSecretMask(el) {
+  if (el.dataset.masked !== "true") return;
+  el.value = "";
+  el.dataset.masked = "false";
+}
+
+function secretPayload(form, isEdit) {
+  const data = formData(form);
+  if (!isEdit) return data;
+  ["password", "token", "privateKey"].forEach(key => {
+    const el = $(`[name="${key}"]`, form);
+    if (!el) return;
+    if (el.dataset.masked === "true" || data[key] === "" || data[key] === SECRET_MASK) {
+      delete data[key];
+    }
+  });
+  return data;
+}
+
 function editSecret(id = "") {
   const s = state.secrets.find(x => x.id === id) || { type: "git" };
+  const isEdit = Boolean(id);
+  const maskAttrs = key => isEdit && secretMaskValue(s, key) ? ` data-masked="true" onfocus="clearSecretMask(this)"` : "";
   openModal(id ? t('edit_secret') : t('btn_new_secret'), `
     <div class="form-grid">
       <div class="field"><label>${t("code")}</label><input name="code" value="${esc(s.code)}"></div>
       <div class="field"><label>${t("type")}</label><select name="type"><option>git</option><option>ssh</option><option>api</option><option>token</option></select></div>
       <div class="field"><label>${t('secret_username')}</label><input name="username" value="${esc(s.username)}"></div>
-      <div class="field"><label>${t('secret_password')}</label><input name="password" type="password" value="${esc(s.password)}"></div>
-      <div class="field full"><label>${t('secret_token')}</label><input name="token" value="${esc(s.token)}"></div>
-      <div class="field full"><label>${t('secret_private_key')}</label><textarea name="privateKey">${esc(s.privateKey)}</textarea></div>
+      <div class="field"><label>${t('secret_password')}</label><input name="password" type="password" autocomplete="new-password" value="${esc(secretMaskValue(s, "password"))}"${maskAttrs("password")}></div>
+      <div class="field full"><label>${t('secret_token')}</label><input name="token" type="password" autocomplete="new-password" value="${esc(secretMaskValue(s, "token"))}"${maskAttrs("token")}></div>
+      <div class="field full"><label>${t('secret_private_key')}</label><textarea name="privateKey" autocomplete="off"${maskAttrs("privateKey")}>${esc(secretMaskValue(s, "privateKey"))}</textarea></div>
       <div class="field full"><label>${t('remark')}</label><input name="remark" value="${esc(s.remark)}"></div>
     </div>`, async () => {
-      const data = formData($("#modalBody"));
+      const data = secretPayload($("#modalBody"), isEdit);
       await save("secrets", id, data);
     });
   $('[name="type"]').value = s.type || "git";
@@ -1080,6 +1117,11 @@ function editUser(id = "") {
         </div>
         <small id="roleHint" class="hint">${t('user_normal_hint')}</small>
       </div>
+      <div class="field full">
+        <label>${t('user_node_perms')}</label>
+        ${targetNodePicker(u.nodeIds || [], { className: "user-node-picker" })}
+        <small class="hint">${t('user_node_perm_hint')}</small>
+      </div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
       data.projectPerms = $$(".perm-row", $("#modalBody")).map(row => ({
@@ -1087,6 +1129,7 @@ function editUser(id = "") {
         canRun: $(".perm-run", row).checked,
         canEdit: $(".perm-edit", row).checked
       })).filter(p => p.canRun || p.canEdit);
+      data.nodeIds = selectedTargetNodeIds($(".user-node-picker", $("#modalBody")));
       await save("users", id, data);
     });
   $('[name="role"]').value = u.role || "user";
@@ -1098,6 +1141,7 @@ function bindUserRoleToggle() {
   const sync = () => {
     const admin = role.value === "admin";
     $$(".perm-row input", $("#modalBody")).forEach(input => input.disabled = admin);
+    $$(".user-node-picker button, .user-node-picker input", $("#modalBody")).forEach(input => input.disabled = admin);
     $("#roleHint").textContent = admin ? t('user_admin_hint') : t('user_normal_hint');
   };
   role.addEventListener("change", sync);
@@ -1238,7 +1282,7 @@ function envRow(e = { artifacts: [{}] }) {
     <div class="target-title"><span class="material-symbols-outlined">hard_drive</span><strong>${t("target_card_title")} ${esc(e.name || "sit")}</strong></div>
     <div class="target-grid">
       <div class="field"><label>${t('label_target_env')}</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
-      <div class="field"><label>${t('label_target_node')}</label>${targetNodePicker(selected)}</div>
+      <div class="field"><label>${t('label_target_node')}</label>${targetNodePicker(selected, { restrictAuthorized: true })}</div>
       <div class="field"><label>${t('label_target_dir')}</label><input class="targetDir" value="${esc(e.artifacts?.[0]?.targetDir || "")}" placeholder="${t('placeholder_target_dir')}"></div>
 
     </div>
@@ -1264,34 +1308,41 @@ function envRow(e = { artifacts: [{}] }) {
   </div>`;
 }
 
-function targetNodePicker(selected = []) {
+function targetNodePicker(selected = [], options = {}) {
   const nodes = state.nodes.filter(n => n.status === "valid" || selected.includes(n.id));
   if (!nodes.length) return `<div class="target-node-picker empty"><span class="hint">${t('node_empty_hint')}</span></div>`;
-  return `<div class="target-node-picker" data-selected="${esc(selected.join(","))}">
-    <div class="target-node-tags">${targetNodeTags(selected)}</div>
+  const className = options.className ? ` ${options.className}` : "";
+  return `<div class="target-node-picker${className}" data-selected="${esc(selected.join(","))}" data-restrict-authorized="${options.restrictAuthorized ? "true" : "false"}">
+    <div class="target-node-tags">${targetNodeTags(selected, options)}</div>
     <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>${t('select_node')}</button>
     <div class="target-node-dropdown">
       <input class="target-node-filter" placeholder="${t('filter_nodes')}" autocomplete="off" oninput="filterTargetNodes(this)">
-      <div class="target-node-options">${targetNodeOptions(selected)}</div>
+      <div class="target-node-options">${targetNodeOptions(selected, options)}</div>
     </div>
   </div>`;
 }
 
-function targetNodeTags(selected = []) {
+function targetNodeTags(selected = [], options = {}) {
   if (!selected.length) return `<span class="target-node-empty">${t('all_nodes')}</span>`;
   return selected.map(id => {
     const node = state.nodes.find(n => n.id === id);
-    const label = node ? `${node.code}${node.status !== "valid" ? t("invalid_suffix") : ""}` : id;
-    return `<span class="node-tag" title="${esc(label)}">${esc(label)}<button type="button" onclick="removeTargetNode(this, '${esc(id)}', event)" title="${t('remove')}"><span class="material-symbols-outlined">close</span></button></span>`;
+    const unauthorized = options.restrictAuthorized && !canUseNode(id);
+    const suffix = `${node?.status !== "valid" ? t("invalid_suffix") : ""}${unauthorized ? t("unauthorized_suffix") : ""}`;
+    const label = node ? `${node.code}${suffix}` : id;
+    return `<span class="node-tag ${unauthorized ? "disabled" : ""}" title="${esc(label)}">${esc(label)}<button type="button" onclick="removeTargetNode(this, '${esc(id)}', event)" title="${t('remove')}"><span class="material-symbols-outlined">close</span></button></span>`;
   }).join("");
 }
 
-function targetNodeOptions(selected = []) {
+function targetNodeOptions(selected = [], options = {}) {
   const nodes = state.nodes.filter(n => n.status === "valid" || selected.includes(n.id));
-  return nodes.map(n => `<button type="button" class="target-node-option ${selected.includes(n.id) ? "selected" : ""}" data-id="${esc(n.id)}" data-label="${esc(n.code)} ${esc(n.type)}" onclick="toggleTargetNode(this, event)" ${n.status !== "valid" ? "disabled" : ""}>
-    <span>${esc(n.code)}<small>${esc(n.type)}${n.status !== "valid" ? t("invalid_suffix") : ""}</small></span>
+  return nodes.map(n => {
+    const unauthorized = options.restrictAuthorized && !canUseNode(n.id);
+    const disabled = n.status !== "valid" || unauthorized;
+    return `<button type="button" class="target-node-option ${selected.includes(n.id) ? "selected" : ""}" data-id="${esc(n.id)}" data-label="${esc(n.code)} ${esc(n.type)}" onclick="toggleTargetNode(this, event)" ${disabled ? "disabled" : ""}>
+    <span>${esc(n.code)}<small>${esc(n.type)}${n.status !== "valid" ? t("invalid_suffix") : ""}${unauthorized ? t("unauthorized_suffix") : ""}</small></span>
     <span class="material-symbols-outlined">${selected.includes(n.id) ? "check" : "add"}</span>
-  </button>`).join("");
+  </button>`;
+  }).join("");
 }
 
 function selectedTargetNodeIds(picker) {
@@ -1300,8 +1351,9 @@ function selectedTargetNodeIds(picker) {
 
 function setSelectedTargetNodeIds(picker, ids) {
   picker.dataset.selected = [...new Set(ids)].join(",");
-  $(".target-node-tags", picker).innerHTML = targetNodeTags(selectedTargetNodeIds(picker));
-  $(".target-node-options", picker).innerHTML = targetNodeOptions(selectedTargetNodeIds(picker));
+  const options = { restrictAuthorized: picker.dataset.restrictAuthorized === "true" };
+  $(".target-node-tags", picker).innerHTML = targetNodeTags(selectedTargetNodeIds(picker), options);
+  $(".target-node-options", picker).innerHTML = targetNodeOptions(selectedTargetNodeIds(picker), options);
 }
 
 function toggleTargetNodeDropdown(btn, ev) {
@@ -1784,9 +1836,13 @@ async function stopCurrentPublish() {
 }
 
 function publishLogHeader(record, lines) {
+  const ref = record.ref || "-";
+  const worker = record.workerName ? ` · <span class="worker-badge"><span class="material-symbols-outlined">precision_manufacturing</span>${esc(record.workerName)}</span>` : "";
+  const rawButton = record.id ? `<button type="button" onclick="openRawLog(${esc(JSON.stringify(record.id))})"><span class="material-symbols-outlined">article</span>${t('raw_log')}</button>` : "";
   return `<div class="toolbar log-toolbar">
-    <span class="badge">${esc(record.projectName)} · ${esc(record.env)} · ${esc(record.version)}${record.workerName ? ` · <span class="worker-badge"><span class="material-symbols-outlined">precision_manufacturing</span>${esc(record.workerName)}</span>` : ""}</span>
+    <span class="badge">${esc(record.projectName)} · ${esc(record.env)} · ${esc(record.version)} · ${t('publish_ref')}: ${esc(ref)}${worker}</span>
     <span class="hint">${t('publish_log_hint')}</span>
+    ${rawButton}
   </div>
   <div id="logProgress">${renderLogProgress(record, lines)}</div>`;
 }
@@ -1858,6 +1914,9 @@ function flushLiveLog() {
 function closeLogStream() {
   if (logReconnectTimer) clearTimeout(logReconnectTimer);
   logReconnectTimer = null;
+  if (logFlushTimer) clearTimeout(logFlushTimer);
+  logFlushTimer = null;
+  logPending = [];
   currentStreamId = "";
   if (logStream) {
     logStream.close();
@@ -1877,6 +1936,7 @@ function connectLogStream(id, tail = 0) {
   if (logStream) logStream.close();
   logStream = new EventSource(`/api/logs/${id}?tail=${tail}`);
   logStream.onmessage = ev => {
+    if (currentStreamId !== id || activeLogRecord?.id !== id) return;
     logReconnectAttempt = 0;
     if (ev.data.startsWith("__DONE__:")) {
       if (activeLogRecord) {
@@ -1892,6 +1952,31 @@ function connectLogStream(id, tail = 0) {
     appendLiveLog(ev.data);
   };
   logStream.onerror = () => scheduleLogReconnect(id);
+}
+
+async function openRawLog(recordId) {
+  const id = recordId || activeLogRecord?.id || $("#publishModal").dataset.activeRecordId;
+  if (!id) return;
+  const record = await api(`/api/records/${id}`);
+  const lines = record.log || [];
+  const ref = record.ref || "-";
+  $("#rawLogMeta").textContent = `${record.projectName || "-"} · ${record.env || "-"} · ${record.version || "-"} · ${t('publish_ref')}: ${ref}`;
+  $("#rawLogText").value = lines.length ? lines.join("\n") : t('no_log');
+  $("#copyRawLog").querySelector("span:last-child").textContent = t('raw_log_copy');
+  $("#rawLogDialog").showModal();
+}
+
+async function copyRawLog() {
+  const text = $("#rawLogText").value || "";
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    $("#rawLogText").select();
+    document.execCommand("copy");
+  }
+  const label = $("#copyRawLog").querySelector("span:last-child");
+  label.textContent = t('raw_log_copied');
+  setTimeout(() => { label.textContent = t('raw_log_copy'); }, 1200);
 }
 
 function scheduleLogReconnect(id) {
@@ -1949,11 +2034,15 @@ function isStaleRunningRecord(record) {
 }
 
 function showProjectLogs(projectId) {
+  closeLogStream();
+  activeLogRecord = null;
   const p = state.projects.find(x => x.id === projectId);
   const records = state.records.filter(r => r.projectId === projectId).sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-  $("#publishBody").innerHTML = `<div class="toolbar"><strong>${esc(p?.name || "")} ${t("publish_log_title")}</strong>${records.map(r => `<button type="button" onclick="showRecordLog('${r.id}')">${esc(r.env)} · ${esc(r.version)} · ${esc(r.status)}</button>`).join("")}</div>`;
-  resetLiveLog(records.length ? records.flatMap(r => [`# ${r.env} ${r.version} ${r.status} ${fmt(r.startedAt)}`, ...(r.log || []).slice(-200)]).slice(-LOG_LIMIT) : [t('no_log')]);
+  $("#publishBody").innerHTML = `<div class="toolbar"><strong>${esc(p?.name || "")} ${t("publish_log_title")}</strong>${records.map(r => `<button type="button" onclick="showRecordLog('${r.id}')">${esc(r.env)} · ${esc(r.version)} · ${esc(r.ref || "-")} · ${esc(r.status)}</button>`).join("")}</div>`;
+  resetLiveLog(records.length ? records.flatMap(r => [`# ${r.env} ${r.version} ${r.status} ${fmt(r.startedAt)} ${t('publish_ref')}: ${r.ref || "-"}`, ...(r.log || []).slice(-200)]).slice(-LOG_LIMIT) : [t('no_log')]);
   $("#startPublish").style.display = "none";
+  $("#stopPublish").style.display = "none";
+  $("#publishModal").dataset.activeRecordId = "";
   $("#publishModal").showModal();
 }
 
@@ -2178,12 +2267,15 @@ $("#primaryBtn").addEventListener("click", () => ({ projects: editProject, secre
 $("#modalSave").addEventListener("click", async ev => { ev.preventDefault(); try { await editing?.(); } catch (e) { alert(e.message); } });
 $("#startPublish").addEventListener("click", async ev => { try { $("#startPublish").style.display = ""; await startPublish(ev); } catch (e) { alert(e.message); } });
 $("#stopPublish").addEventListener("click", async () => { try { await stopCurrentPublish(); } catch (e) { alert(e.message); $("#stopPublish").disabled = false; } });
+$("#copyRawLog").addEventListener("click", async () => { try { await copyRawLog(); } catch (e) { alert(e.message); } });
 $("#publishModal").addEventListener("close", () => {
+  const shouldRefresh = Boolean(activeLogRecord?.id || $("#publishModal").dataset.activeRecordId);
   $("#startPublish").style.display = "";
   $("#startPublish").disabled = false;
   $("#startPublish").textContent = t('btn_start_publish');
   $("#stopPublish").style.display = "none";
   activeLogRecord = null;
   closeLogStream();
+  if (shouldRefresh) load().catch(e => alert(e.message));
 });
 load().catch(e => alert(e.message));
