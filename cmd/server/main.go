@@ -2011,7 +2011,7 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 	if publishMode != "clean" {
 		publishMode = "overwrite"
 	}
-	deployCommand := strings.TrimSpace(env.DeployCommand)
+	deployCommand := normalizeDeployScript(env.DeployCommand)
 	commandTargets := map[string]bool{}
 	for _, artifact := range env.Artifacts {
 		if err := ctx.Err(); err != nil {
@@ -2210,6 +2210,41 @@ func shellCommands(script string) []string {
 		commands = append(commands, command)
 	}
 	return commands
+}
+
+func normalizeDeployScript(script string) string {
+	commands := shellCommands(script)
+	for i, command := range commands {
+		commands[i] = normalizeDeployCommand(command)
+	}
+	return strings.Join(commands, "\n")
+}
+
+func normalizeDeployCommand(command string) string {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return command
+	}
+	noWait := false
+	if strings.HasPrefix(command, "exec none return ") {
+		noWait = true
+		command = strings.TrimSpace(strings.TrimPrefix(command, "exec none return "))
+	}
+	background := strings.HasSuffix(command, "&")
+	if background {
+		command = strings.TrimSpace(strings.TrimSuffix(command, "&"))
+	}
+	if noWait || background || strings.HasPrefix(command, "nohup ") {
+		return detachDeployCommand(command)
+	}
+	return command
+}
+
+func detachDeployCommand(command string) string {
+	return `_code_dep_log=.code-dep-deploy-$(date +%Y%m%d%H%M%S).log; ` +
+		`(` + command + `) </dev/null >> "$_code_dep_log" 2>&1 & ` +
+		`sleep 1; head -n 20 "$_code_dep_log" 2>/dev/null || true; ` +
+		`echo "后台命令已启动，日志: $_code_dep_log"`
 }
 
 func runCommand(ctx context.Context, dir string, logLine func(string, ...any), name string, args ...string) error {

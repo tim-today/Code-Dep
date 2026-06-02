@@ -137,3 +137,40 @@ func TestDeployArtifactsRunsDeployCommandInTargetDir(t *testing.T) {
 		t.Fatalf("deploy command ran in %q, want %q", gotDir, wantDir)
 	}
 }
+
+func TestNormalizeDeployCommandDetachesNohup(t *testing.T) {
+	got := normalizeDeployCommand("nohup java -jar app.jar")
+	for _, want := range []string{
+		`(nohup java -jar app.jar) </dev/null >> "$_code_dep_log" 2>&1 &`,
+		`head -n 20 "$_code_dep_log"`,
+		`后台命令已启动，日志: $_code_dep_log`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("normalized command missing %q: %q", want, got)
+		}
+	}
+}
+
+func TestNormalizeDeployCommandKeepsExistingRedirects(t *testing.T) {
+	got := normalizeDeployCommand("nohup java -jar app.jar > app.log 2>&1")
+	want := `(nohup java -jar app.jar > app.log 2>&1) </dev/null >> "$_code_dep_log" 2>&1 &`
+	if !strings.Contains(got, want) {
+		t.Fatalf("normalized command missing %q: %q", want, got)
+	}
+}
+
+func TestNormalizeDeployCommandLeavesNonNohupCommand(t *testing.T) {
+	got := normalizeDeployCommand("systemctl restart app")
+	want := "systemctl restart app"
+	if got != want {
+		t.Fatalf("normalized command = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeDeployCommandSupportsNoWaitDirective(t *testing.T) {
+	got := normalizeDeployCommand("exec none return java -jar app.jar")
+	want := `(java -jar app.jar) </dev/null >> "$_code_dep_log" 2>&1 &`
+	if !strings.Contains(got, want) {
+		t.Fatalf("normalized command missing %q: %q", want, got)
+	}
+}
