@@ -2163,37 +2163,28 @@ func wrapBuildEnv(env EnvConfig, script string) string {
 	if len(parts) == 0 {
 		return script
 	}
-	prefix := strings.Join(parts, " ")
-	commands := shellCommands(script)
-	for i, command := range commands {
-		commands[i] = prefix + " " + command
-	}
-	return strings.Join(commands, "\n")
+	return "export " + strings.Join(parts, " ") + "\n" + script
 }
 
 func runShell(ctx context.Context, script, dir string, logLine func(string, ...any)) error {
-	commands := shellCommands(script)
-	for i, command := range commands {
-		logLine("执行命令 [%d/%d]: %s", i+1, len(commands), command)
-		if err := runCommand(ctx, dir, logLine, "sh", "-lc", command); err != nil {
-			return err
-		}
+	script = strings.TrimSpace(script)
+	if script == "" {
+		return nil
 	}
-	return nil
+	logShellCommands("执行命令", script, logLine)
+	return runCommand(ctx, dir, logLine, "sh", "-lc", "set -e\n"+script)
 }
 
 func runShellRemote(ctx context.Context, node Node, secret Secret, script, dir string, logLine func(string, ...any)) error {
-	commands := shellCommands(script)
-	for i, command := range commands {
-		if dir != "" {
-			command = "cd " + shQuote(dir) + " && " + command
-		}
-		logLine("远程执行 %s [%d/%d]: %s", node.Code, i+1, len(commands), command)
-		if err := runSSHCommand(ctx, node, secret, command, logLine); err != nil {
-			return err
-		}
+	script = strings.TrimSpace(script)
+	if script == "" {
+		return nil
 	}
-	return nil
+	if dir != "" {
+		script = "cd " + shQuote(dir) + "\n" + script
+	}
+	logShellCommands(fmt.Sprintf("远程执行 %s", node.Code), script, logLine)
+	return runSSHCommand(ctx, node, secret, "set -e\n"+script, logLine)
 }
 
 func remoteMkdir(ctx context.Context, node Node, secret Secret, dir string, logLine func(string, ...any)) error {
@@ -2210,6 +2201,13 @@ func shellCommands(script string) []string {
 		commands = append(commands, command)
 	}
 	return commands
+}
+
+func logShellCommands(prefix, script string, logLine func(string, ...any)) {
+	commands := shellCommands(script)
+	for i, command := range commands {
+		logLine("%s [%d/%d]: %s", prefix, i+1, len(commands), command)
+	}
 }
 
 func normalizeDeployScript(script string) string {
@@ -2229,6 +2227,9 @@ func normalizeDeployCommand(command string) string {
 	if strings.HasPrefix(command, "exec none return ") {
 		noWait = true
 		command = strings.TrimSpace(strings.TrimPrefix(command, "exec none return "))
+	}
+	if command == "" {
+		return command
 	}
 	background := strings.HasSuffix(command, "&")
 	if background {

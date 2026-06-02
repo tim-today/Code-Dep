@@ -44,12 +44,34 @@ func TestRunShellRunsLinesSequentially(t *testing.T) {
 	}
 }
 
-func TestWrapBuildEnvAppliesToEachLine(t *testing.T) {
+func TestWrapBuildEnvAppliesToScriptContext(t *testing.T) {
 	env := EnvConfig{Goos: "linux", Goarch: "amd64"}
 	got := wrapBuildEnv(env, "go build ./cmd/server\nfile server")
-	want := "GOOS='linux' GOARCH='amd64' go build ./cmd/server\nGOOS='linux' GOARCH='amd64' file server"
+	want := "export GOOS='linux' GOARCH='amd64'\ngo build ./cmd/server\nfile server"
 	if got != want {
 		t.Fatalf("wrapped script = %q, want %q", got, want)
+	}
+}
+
+func TestRunShellPreservesContextAcrossLines(t *testing.T) {
+	dir := t.TempDir()
+	if err := runShell(context.Background(), "mkdir app\ncd app\npwd > ../pwd.txt", dir, t.Logf); err != nil {
+		t.Fatalf("runShell returned error: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "pwd.txt"))
+	if err != nil {
+		t.Fatalf("read pwd output: %v", err)
+	}
+	gotDir, err := filepath.EvalSymlinks(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("resolve pwd output: %v", err)
+	}
+	wantDir, err := filepath.EvalSymlinks(filepath.Join(dir, "app"))
+	if err != nil {
+		t.Fatalf("resolve app dir: %v", err)
+	}
+	if gotDir != wantDir {
+		t.Fatalf("shell context dir = %q, want %q", gotDir, wantDir)
 	}
 }
 
