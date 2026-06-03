@@ -794,17 +794,31 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   overflow: auto;
   white-space: pre;
   tab-size: 2;
-  font: 13px/1.6 var(--mono);
+  font: 13px/20px var(--mono);
+}
+.shell-editor code {
+  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  tab-size: inherit;
+  white-space: inherit;
 }
 .shell-editor pre { pointer-events: none; color: #f8f8f2; }
 .shell-editor textarea {
   color: transparent;
   caret-color: #f8f8f2;
   background: transparent;
-  border: 0;
-  box-shadow: none;
-  resize: vertical;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  resize: none !important;
   min-height: 300px;
+}
+.shell-editor textarea:focus {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 .shell-editor textarea::selection { background: rgba(166, 226, 46, .25); }
 .sh-command { color: #a6e22e; }
