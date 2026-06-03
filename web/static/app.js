@@ -101,13 +101,22 @@ function statusBadge(s = "") {
 function nodeName(id) {
   return state.nodes.find(n => n.id === id)?.code || "-";
 }
+function splitGroup(group) {
+  if (!group) return [t('default_node_group')];
+  const parts = String(group).split(/[，,]/).map(x => x.trim()).filter(Boolean);
+  return parts.length ? parts : [t('default_node_group')];
+}
 
 function nodeGroupName(group = "") {
   return String(group || t('default_node_group')).trim() || t('default_node_group');
 }
 
 function nodeGroups() {
-  return [...new Set(state.nodes.map(n => nodeGroupName(n.group)))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+  const set = new Set();
+  state.nodes.forEach(n => {
+    splitGroup(n.group).forEach(g => set.add(g));
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
 function workerName(id) {
@@ -278,9 +287,9 @@ function canUseNode(nodeId) {
 
 function canUseNodeGroup(group) {
   const groups = state.currentUser?.nodeGroups || [];
-  return !groups.length || groups.includes(nodeGroupName(group));
+  if (!groups.length) return true;
+  return splitGroup(group).some(ng => groups.includes(ng));
 }
-
 function canCreateProject() {
   return isAdmin() && !(state.currentUser?.projectPerms || []).length;
 }
@@ -466,14 +475,15 @@ function setGroupFilter(group) {
 function escAttr(s = "") {
   return esc(s).replace(/`/g, "&#96;");
 }
-
 function projectDeployNodes(project) {
   const groups = new Set();
   (project.environments || []).forEach(env => (env.artifacts || []).forEach(a => {
     (a.nodeGroups || []).forEach(group => groups.add(nodeGroupName(group)));
     if (!(a.nodeGroups || []).length) (a.nodeIds || []).forEach(id => {
       const node = state.nodes.find(n => n.id === id);
-      if (node) groups.add(nodeGroupName(node.group));
+      if (node) {
+        splitGroup(node.group).forEach(g => groups.add(g));
+      }
     });
   }));
   return [...groups].join("、") || "-";
@@ -501,11 +511,15 @@ function renderNodes() {
     <section class="card">
       <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div><button class="primary" onclick="editNode()">${t('new_node_btn')}</button></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('col_group')}</th><th>${t('secret_type')}</th><th>${t('node_address')}</th><th>${t('node_dir')}</th><th>${t('node_secret')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
-    ${nodeGroups().map(group => state.nodes.filter(n => nodeGroupName(n.group) === group).map(n => `<tr>
-      <td class="mono"><strong>${esc(n.code)}</strong><br>${statusBadge(n.status || "unknown")}</td><td><span class="badge">${esc(group)}</span></td><td><span class="badge">${esc(n.type)}</span></td><td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : "-")}</td>
-      <td class="mono">${esc(n.baseDir || "-")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td><td>${esc(state.secrets.find(s => s.id === n.secretId)?.code || "-")}</td>
+    ${[...state.nodes].sort((a, b) => a.code.localeCompare(b.code)).map(n => `<tr>
+      <td class="mono"><strong>${esc(n.code)}</strong><br>${statusBadge(n.status || "unknown")}</td>
+      <td>${splitGroup(n.group).map(g => `<span class="badge">${esc(g)}</span>`).join(" ")}</td>
+      <td><span class="badge">${esc(n.type)}</span></td>
+      <td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : "-")}</td>
+      <td class="mono">${esc(n.baseDir || "-")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td>
+      <td>${esc(state.secrets.find(s => s.id === n.secretId)?.code || "-")}</td>
       <td class="actions"><button class="action-icon" title="${t('btn_edit')}" onclick="editNode('${n.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="${t('btn_delete')}" onclick="removeItem('nodes','${n.id}')"><span class="material-symbols-outlined">delete</span></button></td>
-    </tr>`).join("")).join("")}</tbody></table></div></section>` : `<div class="empty">${t('empty_nodes')}</div>`;
+    </tr>`).join("")}</tbody></table></div></section>` : `<div class="empty">${t('empty_nodes')}</div>`;
 }
 
 function renderGlobalConfig() {
@@ -608,15 +622,15 @@ function renderGlobalConfig() {
           <button class="primary" onclick="editNode()"><span class="material-symbols-outlined">add</span>${t('new_node_btn')}</button>
         </div>
         <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t("code")}</th><th>${t('col_group')}</th><th>${t("type")}</th><th>${t('address')}</th><th>${t('status_label')}</th><th>${t('console')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
-          ${nodeGroups().map(group => state.nodes.filter(n => nodeGroupName(n.group) === group).map(n => `<tr>
+          ${[...state.nodes].sort((a, b) => a.code.localeCompare(b.code)).map(n => `<tr>
             <td class="mono">${esc(n.code)}</td>
-            <td><span class="badge">${esc(group)}</span></td>
+            <td>${splitGroup(n.group).map(g => `<span class="badge">${esc(g)}</span>`).join(" ")}</td>
             <td><span class="badge">${esc(n.type)}</span></td>
             <td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : n.baseDir || "-")}</td>
             <td>${statusBadge(n.status || "unknown")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td>
             <td><button class="console-btn" onclick="openConsole('${n.id}')"><span class="material-symbols-outlined">terminal</span>${t('console')}</button></td>
             <td class="actions"><button class="action-icon" onclick="editNode('${n.id}')" title="${t('modal_title')}"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('nodes','${n.id}')" title="${t('btn_delete')}"><span class="material-symbols-outlined">delete</span></button></td>
-          </tr>`).join("")).join("") || `<tr><td colspan="7" class="empty-cell">${t('empty_node')}</td></tr>`}
+          </tr>`).join("") || `<tr><td colspan="7" class="empty-cell">${t('empty_node')}</td></tr>`}
         </tbody></table></div>
       </section>
     </div>`;
@@ -1077,12 +1091,115 @@ function editSecret(id = "") {
   $('[name="type"]').value = s.type || "git";
 }
 
+function editNodeGroupPicker(selected = []) {
+  const cleanSelected = selected.map(nodeGroupName);
+  return `<div class="target-node-picker node-group-multi-picker" data-selected="${esc(cleanSelected.join(","))}">
+    <div class="target-node-tags">${editNodeGroupTags(cleanSelected)}</div>
+    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>${t('select')}</button>
+    <div class="target-node-dropdown">
+      <input class="target-node-filter" placeholder="${t('filter_groups') || "搜索或输入新分组..."}" autocomplete="off" oninput="filterNodeGroupOptions(this)" onkeydown="handleNodeGroupFilterKey(this, event)">
+      <div class="target-node-options">${editNodeGroupOptions(cleanSelected)}</div>
+    </div>
+  </div>`;
+}
+
+function handleNodeGroupFilterKey(input, ev) {
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    const val = input.value.trim();
+    if (!val) return;
+    const picker = input.closest(".node-group-multi-picker");
+    if (!picker) return;
+    const ids = selectedTargetNodeIds(picker);
+    if (!ids.includes(val)) {
+      setSelectedNodeGroupIds(picker, [...ids, val]);
+    }
+    input.value = "";
+    filterNodeGroupOptions(input);
+  }
+}
+
+function editNodeGroupTags(selected = []) {
+  if (!selected.length) return `<span class="target-node-empty">${t('no_group_selected')}</span>`;
+  return selected.map(group => {
+    return `<span class="node-tag" title="${esc(group)}">${esc(group)}<button type="button" onclick="removeNodeGroupPick(this, '${esc(group)}', event)" title="${t('remove')}"><span class="material-symbols-outlined">close</span></button></span>`;
+  }).join("");
+}
+
+function editNodeGroupOptions(selected = [], filterText = "") {
+  const groups = nodeGroups();
+  let html = groups.map(group => {
+    const isSel = selected.includes(group);
+    return `<button type="button" class="target-node-option ${isSel ? "selected" : ""}" data-id="${esc(group)}" data-label="${esc(group)}" onclick="toggleNodeGroupPick(this, event)">
+      <span>${esc(group)}</span>
+      <span class="material-symbols-outlined">${isSel ? "check" : "add"}</span>
+    </button>`;
+  }).join("");
+
+  const trimmed = filterText.trim();
+  if (trimmed && !groups.includes(trimmed)) {
+    html = `<button type="button" class="target-node-option add-custom-option" data-id="${esc(trimmed)}" data-label="${esc(trimmed)}" onclick="toggleNodeGroupPick(this, event)" style="border-bottom:1px dashed var(--line); font-weight:bold;">
+      <span>💡 添加分组 "${esc(trimmed)}"</span>
+      <span class="material-symbols-outlined">add</span>
+    </button>` + html;
+  }
+  return html;
+}
+
+function setSelectedNodeGroupIds(picker, ids) {
+  picker.dataset.selected = [...new Set(ids)].join(",");
+  const selected = selectedTargetNodeIds(picker);
+  const filterInput = $(".target-node-filter", picker);
+  const filterVal = filterInput ? filterInput.value : "";
+  
+  $(".target-node-tags", picker).innerHTML = editNodeGroupTags(selected);
+  $(".target-node-options", picker).innerHTML = editNodeGroupOptions(selected, filterVal);
+}
+
+function toggleNodeGroupPick(btn, ev) {
+  ev?.preventDefault();
+  const picker = btn.closest(".node-group-multi-picker");
+  const id = btn.dataset.id;
+  const ids = selectedTargetNodeIds(picker);
+  setSelectedNodeGroupIds(picker, ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  
+  const filterInput = $(".target-node-filter", picker);
+  if (filterInput) {
+    filterInput.value = "";
+    filterTargetNodes(filterInput);
+  }
+}
+
+function removeNodeGroupPick(btn, id, ev) {
+  ev?.preventDefault();
+  ev?.stopPropagation();
+  const picker = btn.closest(".node-group-multi-picker");
+  setSelectedNodeGroupIds(picker, selectedTargetNodeIds(picker).filter(x => x !== id));
+}
+
+function filterNodeGroupOptions(input) {
+  const picker = input.closest(".node-group-multi-picker");
+  if (!picker) return;
+  const q = input.value.trim().toLowerCase();
+  
+  const selected = selectedTargetNodeIds(picker);
+  $(".target-node-options", picker).innerHTML = editNodeGroupOptions(selected, input.value);
+  
+  $$(".target-node-option", picker).forEach(btn => {
+    if (btn.classList.contains("add-custom-option")) {
+      btn.hidden = false;
+    } else {
+      btn.hidden = q && !btn.dataset.label.toLowerCase().includes(q);
+    }
+  });
+}
+
 function editNode(id = "") {
   const n = state.nodes.find(x => x.id === id) || { type: "local", port: 22, group: t('default_node_group') };
   openModal(id ? t('edit_node') : t('btn_new_node'), `
     <div class="form-grid">
       <div class="field"><label>${t("code")}</label><input name="code" value="${esc(n.code)}"></div>
-      <div class="field"><label>${t('node_group')}</label><input name="group" list="nodeGroupList" value="${esc(nodeGroupName(n.group))}"><datalist id="nodeGroupList">${nodeGroups().map(g => `<option value="${esc(g)}"></option>`).join("")}</datalist></div>
+      <div class="field"><label>${t('node_group')}</label>${editNodeGroupPicker(splitGroup(n.group))}</div>
       <div class="field"><label>${t("type")}</label><select name="type"><option value="local">${t('local_dir')}</option><option value="ssh">${t('node_ssh_remote')}</option></select></div>
       <div class="field"><label>Host</label><input name="host" value="${esc(n.host)}"></div>
       <div class="field"><label>${t('node_port')}</label><input name="port" type="number" value="${esc(n.port || 22)}"></div>
@@ -1093,6 +1210,10 @@ function editNode(id = "") {
     </div>`, async () => {
       const data = formData($("#modalBody"));
       data.port = Number(data.port || 22);
+      const picker = $(".node-group-multi-picker", $("#modalBody"));
+      if (picker) {
+        data.group = selectedTargetNodeIds(picker).join(",");
+      }
       await save("nodes", id, data);
     });
   $('[name="type"]').value = n.type || "local";
@@ -1136,7 +1257,7 @@ function editNotification(id = "") {
 function editUser(id = "") {
   const u = state.users.find(x => x.id === id) || { role: "user", projectPerms: [] };
   const permByProject = new Map((u.projectPerms || []).map(p => [p.projectId, p]));
-  const selectedGroups = (u.nodeGroups || []).length ? u.nodeGroups : [...new Set((u.nodeIds || []).map(id => state.nodes.find(n => n.id === id)).filter(Boolean).map(n => nodeGroupName(n.group)))];
+  const selectedGroups = (u.nodeGroups || []).length ? u.nodeGroups : [...new Set((u.nodeIds || []).map(id => state.nodes.find(n => n.id === id)).filter(Boolean).flatMap(n => splitGroup(n.group)))];
   openModal(id ? t('edit_user') : t('btn_new_user'), `
     <div class="form-grid user-form">
       <div class="field"><label>${t('user_code')}</label><input name="code" value="${esc(u.code)}" placeholder="zhangsan"></div>
@@ -1222,7 +1343,7 @@ function nodeGroupCheckboxes(selected = []) {
       </thead>
       <tbody>
         ${groups.map(group => {
-          const count = state.nodes.filter(n => nodeGroupName(n.group) === group).length;
+          const count = state.nodes.filter(n => splitGroup(n.group).includes(group)).length;
           return `<tr class="perm-row" data-node-group="${esc(group)}">
             <td>
               <div class="perm-name-cell" title="${esc(group)}">
@@ -1372,7 +1493,7 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
 
 function envRow(e = { artifacts: [{}] }) {
   const artifact = e.artifacts?.[0] || {};
-  const selected = (artifact.nodeGroups || []).length ? artifact.nodeGroups : [...new Set((artifact.nodeIds || []).map(id => state.nodes.find(n => n.id === id)).filter(Boolean).map(n => nodeGroupName(n.group)))];
+  const selected = (artifact.nodeGroups || []).length ? artifact.nodeGroups : [...new Set((artifact.nodeIds || []).map(id => state.nodes.find(n => n.id === id)).filter(Boolean).flatMap(n => splitGroup(n.group)))];
   const compileDeploy = !!(e.compileDeploy || e.buildCommand);
   return `<div class="target-card env">
     <button type="button" class="target-delete" onclick="this.closest('.env').remove()" title="${t('delete_target')}"><span class="material-symbols-outlined">delete</span></button>
@@ -1433,7 +1554,7 @@ function targetGroupOptions(selected = [], options = {}) {
   return nodeGroups().map(group => {
     const unauthorized = options.restrictAuthorized && !canUseNodeGroup(group);
     const selectedGroup = selected.includes(group);
-    const count = state.nodes.filter(n => nodeGroupName(n.group) === group).length;
+    const count = state.nodes.filter(n => splitGroup(n.group).includes(group)).length;
     return `<button type="button" class="target-node-option ${selectedGroup ? "selected" : ""}" data-id="${esc(group)}" data-label="${esc(group)}" onclick="toggleTargetNode(this, event)" ${unauthorized ? "disabled" : ""}>
     <span>${esc(group)}<small>${count} ${t('nodes_count')}${unauthorized ? t("unauthorized_suffix") : ""}</small></span>
     <span class="material-symbols-outlined">${selectedGroup ? "check" : "add"}</span>
@@ -2011,6 +2132,93 @@ function updateLogProgress() {
   $("#logProgress").innerHTML = renderLogProgress(activeLogRecord, logLines);
 }
 
+function parseNodeProgress(lines = []) {
+  let targetNodes = [];
+  const nodeStates = {};
+
+  for (const line of lines) {
+    const listMatch = line.match(/目标部署节点列表:\s*(.+)$/);
+    if (listMatch) {
+      targetNodes = listMatch[1].split(",").map(x => x.trim()).filter(Boolean);
+      targetNodes.forEach(node => {
+        if (!nodeStates[node]) {
+          nodeStates[node] = "waiting";
+        }
+      });
+    }
+
+    const startMatch = line.match(/开始部署节点:\s*(.+)$/);
+    if (startMatch) {
+      const node = startMatch[1].trim();
+      nodeStates[node] = "pending";
+      if (!targetNodes.includes(node)) {
+        targetNodes.push(node);
+      }
+    }
+
+    const successMatch = line.match(/节点\s*(.+?)\s*部署成功$/);
+    if (successMatch) {
+      const node = successMatch[1].trim();
+      nodeStates[node] = "ok";
+      if (!targetNodes.includes(node)) {
+        targetNodes.push(node);
+      }
+    }
+
+    const failMatch = line.match(/节点\s*(.+?)\s*部署失败/);
+    if (failMatch) {
+      const node = failMatch[1].trim();
+      nodeStates[node] = "failed";
+      if (!targetNodes.includes(node)) {
+        targetNodes.push(node);
+      }
+    }
+  }
+
+  if (targetNodes.length === 0) {
+    return "";
+  }
+
+  const total = targetNodes.length;
+  const okCount = targetNodes.filter(node => nodeStates[node] === "ok").length;
+
+  const statusEmoji = {
+    waiting: "⌛",
+    pending: "⏳",
+    ok: "✅",
+    failed: "❌"
+  };
+
+  const statusLabels = {
+    waiting: "waiting...",
+    pending: "pending",
+    ok: "ok",
+    failed: "failed"
+  };
+
+  const nodeItemsHtml = targetNodes.map(node => {
+    const status = nodeStates[node] || "waiting";
+    const emoji = statusEmoji[status];
+    const label = statusLabels[status];
+    return `<div class="node-progress-item ${status}">
+      <span class="node-emoji">${emoji}</span>
+      <span class="node-code mono">${esc(node)}</span>
+      <span class="node-sep">:</span>
+      <span class="node-status">${esc(label)}</span>
+    </div>`;
+  }).join("");
+
+  return `<div class="node-progress-section">
+    <div class="node-progress-summary">
+      <span class="summary-title">${t('deploy_progress')}:</span>
+      <span class="summary-fraction mono">${okCount}/${total}</span>
+    </div>
+    <div class="node-progress-list">
+      ${nodeItemsHtml}
+    </div>
+  </div>`;
+}
+
 function renderLogProgress(record, lines = []) {
   const snapshot = { ...record, log: lines };
   const stages = stageSummary(snapshot);
@@ -2018,10 +2226,12 @@ function renderLogProgress(record, lines = []) {
   const done = keys.filter(k => ["success", "skipped"].includes(stages[k]?.status)).length;
   const percent = record.status === "success" ? 100 : record.status === "failed" || record.status === "stopped" ? Math.max(8, done * 25) : Math.max(8, done * 25);
   const elapsed = fmtDuration((record.endedAt ? new Date(record.endedAt) : new Date()) - new Date(record.startedAt || Date.now()));
+  const nodeProgressHtml = parseNodeProgress(lines);
   return `<div class="log-progress">
     <div class="progress-head"><strong>${statusBadge(record.status)}</strong><span>${t('elapsed_prefix')} ${esc(elapsed)}</span></div>
     <div class="progress-track"><i style="width:${percent}%"></i></div>
     <div class="progress-stages">${keys.map(k => progressStage(k, stages[k])).join("")}</div>
+    ${nodeProgressHtml}
   </div>`;
 }
 

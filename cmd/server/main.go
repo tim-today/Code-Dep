@@ -374,7 +374,7 @@ func loadStore(dataDir string) (*Store, error) {
 
 func migrateNodeGroups(store *Store) {
 	for i := range store.Nodes {
-		store.Nodes[i].Group = normalizeNodeGroup(store.Nodes[i].Group)
+		store.Nodes[i].Group = normalizeMultiNodeGroup(store.Nodes[i].Group)
 	}
 	for pi := range store.Projects {
 		for ei := range store.Projects[pi].Environments {
@@ -755,10 +755,13 @@ func hasNodeGroupAccess(user User, group string) bool {
 	if len(user.NodeGroups) == 0 {
 		return true
 	}
-	group = normalizeNodeGroup(group)
-	for _, item := range user.NodeGroups {
-		if normalizeNodeGroup(item) == group {
-			return true
+	subGroups := splitGroup(group)
+	for _, sg := range subGroups {
+		sg = normalizeNodeGroup(sg)
+		for _, item := range user.NodeGroups {
+			if normalizeNodeGroup(item) == sg {
+				return true
+			}
 		}
 	}
 	return false
@@ -1024,7 +1027,7 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 		if item.Port == 0 {
 			item.Port = 22
 		}
-		item.Group = normalizeNodeGroup(item.Group)
+		item.Group = normalizeMultiNodeGroup(item.Group)
 		if !hasNodeGroupAccess(user, item.Group) {
 			fail(w, http.StatusForbidden, "没有节点分组权限: "+item.Group)
 			return
@@ -1089,7 +1092,7 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 		if item.Port == 0 {
 			item.Port = 22
 		}
-		item.Group = normalizeNodeGroup(item.Group)
+		item.Group = normalizeMultiNodeGroup(item.Group)
 		if !hasNodeGroupAccess(user, item.Group) {
 			fail(w, http.StatusForbidden, "没有节点分组权限: "+item.Group)
 			return
@@ -1457,6 +1460,40 @@ func normalizeUser(item *User) {
 	}
 	item.NodeIDs = nodeIDs
 	item.NodeGroups = normalizeNodeGroups(item.NodeGroups)
+}
+
+func splitGroup(group string) []string {
+	raw := strings.FieldsFunc(group, func(r rune) bool {
+		return r == ',' || r == '，'
+	})
+	var result []string
+	for _, s := range raw {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	if len(result) == 0 {
+		result = []string{defaultNodeGroup}
+	}
+	return result
+}
+
+func normalizeMultiNodeGroup(group string) string {
+	parts := splitGroup(group)
+	var clean []string
+	seen := map[string]bool{}
+	for _, p := range parts {
+		p = normalizeNodeGroup(p)
+		if !seen[p] {
+			seen[p] = true
+			clean = append(clean, p)
+		}
+	}
+	if len(clean) == 0 {
+		return defaultNodeGroup
+	}
+	return strings.Join(clean, ",")
 }
 
 func normalizeNodeGroup(group string) string {
@@ -2269,6 +2306,26 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 	}
 	deployCommand := normalizeDeployScript(env.DeployCommand)
 	commandTargets := map[string]bool{}
+
+	// 收集并打印目标部署节点列表
+	var allNodes []Node
+	seenNodeIDs := map[string]bool{}
+	for _, artifact := range env.Artifacts {
+		for _, node := range artifactTargetNodes(store, artifact) {
+			if !seenNodeIDs[node.ID] {
+				seenNodeIDs[node.ID] = true
+				allNodes = append(allNodes, node)
+			}
+		}
+	}
+	var nodeCodes []string
+	for _, n := range allNodes {
+		nodeCodes = append(nodeCodes, n.Code)
+	}
+	if len(nodeCodes) > 0 {
+		logLine("目标部署节点列表: %s", strings.Join(nodeCodes, ","))
+	}
+
 	for _, artifact := range env.Artifacts {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -2288,57 +2345,68 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if node.Type == "ssh" {
-				secret, _ := findSecret(store, node.SecretID)
-				logLine("发布到远程节点 %s -> %s", node.Code, artifact.TargetDir)
-				if publishMode == "clean" {
-					logLine("清理远程目标目录: %s", artifact.TargetDir)
-					if err := runShellRemote(ctx, node, secret, "rm -rf "+shQuote(artifact.TargetDir)+" && mkdir -p "+shQuote(artifact.TargetDir), "", logLine); err != nil {
+			logLine("开始部署节点: %s", node.Code)
+
+			err := func() error {
+				if node.Type == "ssh" {
+					secret, _ := findSecret(store, node.SecretID)
+					logLine("发布到远程节点 %s -> %s", node.Code, artifact.TargetDir)
+					if publishMode == "clean" {
+						logLine("清理远程目标目录: %s", artifact.TargetDir)
+						if err := runShellRemote(ctx, node, secret, "rm -rf "+shQuote(artifact.TargetDir)+" && mkdir -p "+shQuote(artifact.TargetDir), "", logLine); err != nil {
+							return err
+						}
+					} else {
+						if err := remoteMkdir(ctx, node, secret, artifact.TargetDir, logLine); err != nil {
+							return err
+						}
+					}
+					if err := uploadLocalPath(ctx, node, secret, source, artifact.TargetDir, logLine); err != nil {
 						return err
 					}
-				} else {
-					if err := remoteMkdir(ctx, node, secret, artifact.TargetDir, logLine); err != nil {
+					key := node.ID + "|" + artifact.TargetDir
+					if deployCommand != "" && !commandTargets[key] {
+						commandTargets[key] = true
+						logLine("在远程目标目录执行发布命令: %s -> %s", node.Code, artifact.TargetDir)
+						if err := runShellRemote(ctx, node, secret, deployCommand, artifact.TargetDir, logLine); err != nil {
+							return fmt.Errorf("远程发布命令失败: %w", err)
+						}
+					}
+					return nil
+				}
+				targetDir := artifact.TargetDir
+				if !filepath.IsAbs(targetDir) && node.BaseDir != "" {
+					targetDir = filepath.Join(node.BaseDir, targetDir)
+				}
+				logLine("发布到本地节点 %s -> %s", node.Code, targetDir)
+				if publishMode == "clean" {
+					logLine("清理本地目标目录: %s", targetDir)
+					if err := os.RemoveAll(targetDir); err != nil {
 						return err
 					}
 				}
-				if err := uploadLocalPath(ctx, node, secret, source, artifact.TargetDir, logLine); err != nil {
+				if err := os.MkdirAll(targetDir, 0755); err != nil {
 					return err
 				}
-				key := node.ID + "|" + artifact.TargetDir
+				if err := copyArtifactContent(source, targetDir); err != nil {
+					return err
+				}
+				key := node.ID + "|" + targetDir
 				if deployCommand != "" && !commandTargets[key] {
 					commandTargets[key] = true
-					logLine("在远程目标目录执行发布命令: %s -> %s", node.Code, artifact.TargetDir)
-					if err := runShellRemote(ctx, node, secret, deployCommand, artifact.TargetDir, logLine); err != nil {
-						return fmt.Errorf("远程发布命令失败: %w", err)
+					logLine("在本地目标目录执行发布命令: %s -> %s", node.Code, targetDir)
+					if err := runShell(ctx, deployCommand, targetDir, logLine); err != nil {
+						return fmt.Errorf("本地发布命令失败: %w", err)
 					}
 				}
-				continue
-			}
-			targetDir := artifact.TargetDir
-			if !filepath.IsAbs(targetDir) && node.BaseDir != "" {
-				targetDir = filepath.Join(node.BaseDir, targetDir)
-			}
-			logLine("发布到本地节点 %s -> %s", node.Code, targetDir)
-			if publishMode == "clean" {
-				logLine("清理本地目标目录: %s", targetDir)
-				if err := os.RemoveAll(targetDir); err != nil {
-					return err
-				}
-			}
-			if err := os.MkdirAll(targetDir, 0755); err != nil {
+				return nil
+			}()
+
+			if err != nil {
+				logLine("节点 %s 部署失败: %v", node.Code, err)
 				return err
 			}
-			if err := copyArtifactContent(source, targetDir); err != nil {
-				return err
-			}
-			key := node.ID + "|" + targetDir
-			if deployCommand != "" && !commandTargets[key] {
-				commandTargets[key] = true
-				logLine("在本地目标目录执行发布命令: %s -> %s", node.Code, targetDir)
-				if err := runShell(ctx, deployCommand, targetDir, logLine); err != nil {
-					return fmt.Errorf("本地发布命令失败: %w", err)
-				}
-			}
+			logLine("节点 %s 部署成功", node.Code)
 		}
 	}
 	logLine("部署文件同步完成")
@@ -2357,7 +2425,15 @@ func artifactTargetNodes(store *Store, artifact ArtifactRule) []Node {
 		store.mu.RLock()
 		defer store.mu.RUnlock()
 		for _, node := range store.Nodes {
-			if !groupSet[normalizeNodeGroup(node.Group)] || seen[node.ID] {
+			subGroups := splitGroup(node.Group)
+			matched := false
+			for _, sg := range subGroups {
+				if groupSet[normalizeNodeGroup(sg)] {
+					matched = true
+					break
+				}
+			}
+			if !matched || seen[node.ID] {
 				continue
 			}
 			seen[node.ID] = true

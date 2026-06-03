@@ -344,6 +344,11 @@ const I18N = {
     "en": "Deploy",
     "zh-TW": "部署"
   },
+  "deploy_progress": {
+    "zh": "部署进度",
+    "en": "Deploy Progress",
+    "zh-TW": "部署進度"
+  },
   "stage_message": {
     "zh": "消息",
     "en": "Message",

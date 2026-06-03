@@ -2370,3 +2370,79 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
     flex-wrap: wrap;
   }
 }
+
+.node-progress-section {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.node-progress-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--muted);
+}
+.summary-fraction {
+  background: var(--surface-high);
+  color: var(--ink);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.node-progress-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.node-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface-low);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 12px;
+}
+.node-progress-item.waiting {
+  color: var(--soft);
+}
+.node-progress-item.pending {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-color: #f4c47a;
+  animation: pulse 2s infinite ease-in-out;
+}
+.node-progress-item.ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+  border-color: #9fd3ab;
+}
+.node-progress-item.failed {
+  color: var(--bad);
+  background: var(--bad-bg);
+  border-color: #f0a8a0;
+}
+.node-emoji {
+  font-size: 13px;
+}
+.node-code {
+  font-weight: 600;
+}
+.node-sep {
+  color: var(--soft);
+}
+.node-status {
+  font-size: 11px;
+  font-weight: 700;
+}
+@keyframes pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
