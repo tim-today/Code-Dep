@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -37,6 +38,10 @@ import (
 // ── Encryption ────────────────────────────────────────────────────────────────
 
 func loadOrCreateKey(dataDir string) ([]byte, error) {
+	if envKey := os.Getenv("DATA_KEY"); envKey != "" {
+		h := sha256.Sum256([]byte(envKey))
+		return h[:], nil
+	}
 	keyPath := filepath.Join(dataDir, ".key")
 	if b, err := os.ReadFile(keyPath); err == nil && len(b) >= 32 {
 		return b[:32], nil

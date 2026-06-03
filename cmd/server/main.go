@@ -31,13 +31,14 @@ import (
 )
 
 const (
-	dataDir          = "data"
 	staticDir        = "web/static"
 	defaultPort      = "8080"
 	commandTimeout   = 30 * time.Minute
 	sshTimeout       = 20 * time.Second
 	defaultNodeGroup = "默认分组"
 )
+
+var dataDir = "data"
 
 type Store struct {
 	mu            sync.RWMutex   `json:"-"`
@@ -260,6 +261,9 @@ type publishRequest struct {
 }
 
 func main() {
+	if envDir := os.Getenv("DATA_DIR"); envDir != "" {
+		dataDir = envDir
+	}
 	store, err := loadStore(dataDir)
 	if err != nil {
 		log.Fatal(err)
@@ -817,20 +821,7 @@ func filterNodesForUser(nodes []Node, user User) []Node {
 }
 
 func filterWorkersForUser(workers []Worker, nodes []Node, user User) []Worker {
-	if len(user.NodeGroups) == 0 {
-		return append([]Worker(nil), workers...)
-	}
-	nodeByID := map[string]Node{}
-	for _, node := range nodes {
-		nodeByID[node.ID] = node
-	}
-	filtered := []Worker{}
-	for _, worker := range workers {
-		if node, ok := nodeByID[worker.NodeID]; ok && hasNodeGroupAccess(user, node.Group) {
-			filtered = append(filtered, worker)
-		}
-	}
-	return filtered
+	return append([]Worker(nil), workers...)
 }
 
 func sanitizeUsers(users []User) []User {
@@ -1948,7 +1939,7 @@ func (s *Server) selectPublishWorker(project Project, overrideIDs []string, user
 			continue
 		}
 		nodeIdx := indexNode(s.store.Nodes, worker.NodeID)
-		if nodeIdx < 0 || !hasNodeGroupAccess(user, s.store.Nodes[nodeIdx].Group) {
+		if nodeIdx < 0 {
 			continue
 		}
 		candidates = append(candidates, worker)

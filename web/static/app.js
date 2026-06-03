@@ -2417,6 +2417,7 @@ $("#modalSave").addEventListener("click", async ev => { ev.preventDefault(); try
 $("#startPublish").addEventListener("click", async ev => { try { $("#startPublish").style.display = ""; await startPublish(ev); } catch (e) { alert(e.message); } });
 $("#stopPublish").addEventListener("click", async () => { try { await stopCurrentPublish(); } catch (e) { alert(e.message); $("#stopPublish").disabled = false; } });
 $("#publishModal").addEventListener("close", () => {
+  if ($("#publishModal").open) return;
   const shouldRefresh = Boolean(activeLogRecord?.id || $("#publishModal").dataset.activeRecordId);
   $("#startPublish").style.display = "";
   $("#startPublish").disabled = false;
