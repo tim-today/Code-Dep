@@ -31,11 +31,12 @@ import (
 )
 
 const (
-	dataDir        = "data"
-	staticDir      = "web/static"
-	defaultPort    = "8080"
-	commandTimeout = 30 * time.Minute
-	sshTimeout     = 20 * time.Second
+	dataDir          = "data"
+	staticDir        = "web/static"
+	defaultPort      = "8080"
+	commandTimeout   = 30 * time.Minute
+	sshTimeout       = 20 * time.Second
+	defaultNodeGroup = "默认分组"
 )
 
 type Store struct {
@@ -71,6 +72,7 @@ type Secret struct {
 type Node struct {
 	ID        string    `json:"id"`
 	Code      string    `json:"code"`
+	Group     string    `json:"group"`
 	Type      string    `json:"type"`
 	Host      string    `json:"host"`
 	Port      int       `json:"port"`
@@ -114,6 +116,7 @@ type User struct {
 	Password     string        `json:"password"`
 	ProjectPerms []ProjectPerm `json:"projectPerms"`
 	NodeIDs      []string      `json:"nodeIds"`
+	NodeGroups   []string      `json:"nodeGroups"`
 	Remark       string        `json:"remark"`
 	CreatedAt    time.Time     `json:"createdAt"`
 	UpdatedAt    time.Time     `json:"updatedAt"`
@@ -168,9 +171,10 @@ type EnvConfig struct {
 }
 
 type ArtifactRule struct {
-	Source    string   `json:"source"`
-	TargetDir string   `json:"targetDir"`
-	NodeIDs   []string `json:"nodeIds"`
+	Source     string   `json:"source"`
+	TargetDir  string   `json:"targetDir"`
+	NodeIDs    []string `json:"nodeIds"`
+	NodeGroups []string `json:"nodeGroups"`
 }
 
 type NotifyConfig struct {
@@ -357,10 +361,48 @@ func loadStore(dataDir string) (*Store, error) {
 	if store.NextID == 0 {
 		store.NextID = 1
 	}
+	migrateNodeGroups(store)
 	migrateWorkspaceConfig(store)
 	migrateWorkers(store)
 	_ = store.saveAll()
 	return store, os.MkdirAll(dataDir, 0755)
+}
+
+func migrateNodeGroups(store *Store) {
+	for i := range store.Nodes {
+		store.Nodes[i].Group = normalizeNodeGroup(store.Nodes[i].Group)
+	}
+	for pi := range store.Projects {
+		for ei := range store.Projects[pi].Environments {
+			env := &store.Projects[pi].Environments[ei]
+			for ai := range env.Artifacts {
+				artifact := &env.Artifacts[ai]
+				artifact.NodeGroups = normalizeNodeGroups(artifact.NodeGroups)
+				if len(artifact.NodeGroups) == 0 && len(artifact.NodeIDs) > 0 {
+					groups := []string{}
+					for _, nodeID := range artifact.NodeIDs {
+						if node, ok := findNode(store, nodeID); ok {
+							groups = append(groups, node.Group)
+						}
+					}
+					artifact.NodeGroups = normalizeNodeGroups(groups)
+				}
+			}
+		}
+	}
+	for ui := range store.Users {
+		user := &store.Users[ui]
+		user.NodeGroups = normalizeNodeGroups(user.NodeGroups)
+		if user.Role != "admin" && len(user.NodeGroups) == 0 && len(user.NodeIDs) > 0 {
+			groups := []string{}
+			for _, nodeID := range user.NodeIDs {
+				if node, ok := findNode(store, nodeID); ok {
+					groups = append(groups, node.Group)
+				}
+			}
+			user.NodeGroups = normalizeNodeGroups(groups)
+		}
+	}
 }
 
 func migrateWorkspaceConfig(store *Store) {
@@ -669,7 +711,7 @@ func (s *Server) requireProjectPerm(w http.ResponseWriter, r *http.Request, proj
 }
 
 func hasProjectAccess(user User, projectID, action string) bool {
-	if user.Role == "admin" {
+	if len(user.ProjectPerms) == 0 {
 		return true
 	}
 	for _, perm := range user.ProjectPerms {
@@ -689,8 +731,12 @@ func hasProjectAccess(user User, projectID, action string) bool {
 	return false
 }
 
+func canCreateProject(user User) bool {
+	return user.Role == "admin" && len(user.ProjectPerms) == 0
+}
+
 func hasNodeAccess(user User, nodeID string) bool {
-	if user.Role == "admin" {
+	if len(user.NodeIDs) == 0 && len(user.NodeGroups) == 0 {
 		return true
 	}
 	for _, id := range user.NodeIDs {
@@ -701,12 +747,25 @@ func hasNodeAccess(user User, nodeID string) bool {
 	return false
 }
 
+func hasNodeGroupAccess(user User, group string) bool {
+	if len(user.NodeGroups) == 0 {
+		return true
+	}
+	group = normalizeNodeGroup(group)
+	for _, item := range user.NodeGroups {
+		if normalizeNodeGroup(item) == group {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) bootstrapForUserLocked(user User) bootstrapPayload {
 	payload := bootstrapPayload{
 		CurrentUser:   sanitizeUser(user),
 		Secrets:       sanitizeSecrets(s.store.Secrets),
-		Nodes:         append([]Node(nil), s.store.Nodes...),
-		Workers:       append([]Worker(nil), s.store.Workers...),
+		Nodes:         filterNodesForUser(s.store.Nodes, user),
+		Workers:       filterWorkersForUser(s.store.Workers, s.store.Nodes, user),
 		Notifications: append([]Notification(nil), s.store.Notifications...),
 		Projects:      filterProjectsForUser(s.store.Projects, user),
 		Records:       filterRecordsForUser(s.store.Records, user),
@@ -719,7 +778,7 @@ func (s *Server) bootstrapForUserLocked(user User) bootstrapPayload {
 }
 
 func filterProjectsForUser(projects []Project, user User) []Project {
-	if user.Role == "admin" {
+	if len(user.ProjectPerms) == 0 {
 		return append([]Project(nil), projects...)
 	}
 	filtered := []Project{}
@@ -732,13 +791,43 @@ func filterProjectsForUser(projects []Project, user User) []Project {
 }
 
 func filterRecordsForUser(records []Record, user User) []Record {
-	if user.Role == "admin" {
+	if len(user.ProjectPerms) == 0 {
 		return append([]Record(nil), records...)
 	}
 	filtered := []Record{}
 	for _, record := range records {
 		if hasProjectAccess(user, record.ProjectID, "view") {
 			filtered = append(filtered, record)
+		}
+	}
+	return filtered
+}
+
+func filterNodesForUser(nodes []Node, user User) []Node {
+	if len(user.NodeGroups) == 0 {
+		return append([]Node(nil), nodes...)
+	}
+	filtered := []Node{}
+	for _, node := range nodes {
+		if hasNodeGroupAccess(user, node.Group) {
+			filtered = append(filtered, node)
+		}
+	}
+	return filtered
+}
+
+func filterWorkersForUser(workers []Worker, nodes []Node, user User) []Worker {
+	if len(user.NodeGroups) == 0 {
+		return append([]Worker(nil), workers...)
+	}
+	nodeByID := map[string]Node{}
+	for _, node := range nodes {
+		nodeByID[node.ID] = node
+	}
+	filtered := []Worker{}
+	for _, worker := range workers {
+		if node, ok := nodeByID[worker.NodeID]; ok && hasNodeGroupAccess(user, node.Group) {
+			filtered = append(filtered, worker)
 		}
 	}
 	return filtered
@@ -925,11 +1014,12 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
+	user, _ := s.currentUser(r)
 	switch r.Method {
 	case http.MethodGet:
 		s.store.mu.RLock()
 		defer s.store.mu.RUnlock()
-		respond(w, s.store.Nodes)
+		respond(w, filterNodesForUser(s.store.Nodes, user))
 	case http.MethodPost:
 		var item Node
 		if err := readJSON(r, &item); err != nil {
@@ -942,6 +1032,11 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 		}
 		if item.Port == 0 {
 			item.Port = 22
+		}
+		item.Group = normalizeNodeGroup(item.Group)
+		if !hasNodeGroupAccess(user, item.Group) {
+			fail(w, http.StatusForbidden, "没有节点分组权限: "+item.Group)
+			return
 		}
 		item.Status = "unknown"
 		s.store.mu.Lock()
@@ -964,8 +1059,13 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
+	user, _ := s.currentUser(r)
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/nodes/"), "/")
 	id := parts[0]
+	if node, ok := findNode(s.store, id); ok && !hasNodeGroupAccess(user, node.Group) {
+		fail(w, http.StatusForbidden, "没有节点分组权限: "+normalizeNodeGroup(node.Group))
+		return
+	}
 	if len(parts) == 2 && parts[1] == "test" {
 		s.testNode(w, r, id)
 		return
@@ -981,6 +1081,10 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "节点不存在")
 		return
 	}
+	if !hasNodeGroupAccess(user, s.store.Nodes[idx].Group) {
+		fail(w, http.StatusForbidden, "没有节点分组权限: "+normalizeNodeGroup(s.store.Nodes[idx].Group))
+		return
+	}
 	switch r.Method {
 	case http.MethodPut:
 		var item Node
@@ -993,6 +1097,11 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 		item.UpdatedAt = time.Now()
 		if item.Port == 0 {
 			item.Port = 22
+		}
+		item.Group = normalizeNodeGroup(item.Group)
+		if !hasNodeGroupAccess(user, item.Group) {
+			fail(w, http.StatusForbidden, "没有节点分组权限: "+item.Group)
+			return
 		}
 		item.Status = s.store.Nodes[idx].Status
 		item.LastError = s.store.Nodes[idx].LastError
@@ -1014,11 +1123,12 @@ func (s *Server) workers(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
+	user, _ := s.currentUser(r)
 	switch r.Method {
 	case http.MethodGet:
 		s.store.mu.RLock()
 		defer s.store.mu.RUnlock()
-		respond(w, s.store.Workers)
+		respond(w, filterWorkersForUser(s.store.Workers, s.store.Nodes, user))
 	case http.MethodPost:
 		var item Worker
 		if err := readJSON(r, &item); err != nil {
@@ -1031,8 +1141,13 @@ func (s *Server) workers(w http.ResponseWriter, r *http.Request) {
 		}
 		s.store.mu.Lock()
 		defer s.store.mu.Unlock()
-		if indexNode(s.store.Nodes, item.NodeID) < 0 {
+		nodeIdx := indexNode(s.store.Nodes, item.NodeID)
+		if nodeIdx < 0 {
 			fail(w, 400, "worker 节点不存在")
+			return
+		}
+		if !hasNodeGroupAccess(user, s.store.Nodes[nodeIdx].Group) {
+			fail(w, http.StatusForbidden, "没有 worker 节点分组权限")
 			return
 		}
 		item.ID = s.store.newID("worker")
@@ -1053,12 +1168,17 @@ func (s *Server) workerByID(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		return
 	}
+	user, _ := s.currentUser(r)
 	id := strings.TrimPrefix(r.URL.Path, "/api/workers/")
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
 	idx := indexWorker(s.store.Workers, id)
 	if idx < 0 {
 		fail(w, 404, "worker 不存在")
+		return
+	}
+	if nodeIdx := indexNode(s.store.Nodes, s.store.Workers[idx].NodeID); nodeIdx >= 0 && !hasNodeGroupAccess(user, s.store.Nodes[nodeIdx].Group) {
+		fail(w, http.StatusForbidden, "没有 worker 节点分组权限")
 		return
 	}
 	switch r.Method {
@@ -1072,8 +1192,13 @@ func (s *Server) workerByID(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, err.Error())
 			return
 		}
-		if indexNode(s.store.Nodes, item.NodeID) < 0 {
+		nodeIdx := indexNode(s.store.Nodes, item.NodeID)
+		if nodeIdx < 0 {
 			fail(w, 400, "worker 节点不存在")
+			return
+		}
+		if !hasNodeGroupAccess(user, s.store.Nodes[nodeIdx].Group) {
+			fail(w, http.StatusForbidden, "没有 worker 节点分组权限")
 			return
 		}
 		item.ID = id
@@ -1318,11 +1443,6 @@ func normalizeUser(item *User) {
 	if item.Role == "" {
 		item.Role = "user"
 	}
-	if item.Role == "admin" {
-		item.ProjectPerms = nil
-		item.NodeIDs = nil
-		return
-	}
 	perms := item.ProjectPerms[:0]
 	seen := map[string]bool{}
 	for _, perm := range item.ProjectPerms {
@@ -1345,6 +1465,29 @@ func normalizeUser(item *User) {
 		nodeIDs = append(nodeIDs, id)
 	}
 	item.NodeIDs = nodeIDs
+	item.NodeGroups = normalizeNodeGroups(item.NodeGroups)
+}
+
+func normalizeNodeGroup(group string) string {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return defaultNodeGroup
+	}
+	return group
+}
+
+func normalizeNodeGroups(groups []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, group := range groups {
+		group = normalizeNodeGroup(group)
+		if seen[group] {
+			continue
+		}
+		seen[group] = true
+		out = append(out, group)
+	}
+	return out
 }
 
 func validateUser(item User) error {
@@ -1369,6 +1512,11 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 		respond(w, filterProjectsForUser(s.store.Projects, user))
 	case http.MethodPost:
 		if !s.requireAdmin(w, r) {
+			return
+		}
+		user, _ := s.currentUser(r)
+		if !canCreateProject(user) {
+			fail(w, http.StatusForbidden, "没有创建项目权限")
 			return
 		}
 		var item Project
@@ -1420,8 +1568,8 @@ func (s *Server) projectByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if id == "_draft" {
-			if user.Role != "admin" {
-				fail(w, http.StatusForbidden, "需要管理员权限")
+			if !canCreateProject(user) {
+				fail(w, http.StatusForbidden, "没有创建项目权限")
 				return
 			}
 		} else if !hasProjectAccess(user, id, "run") && !hasProjectAccess(user, id, "edit") {
@@ -1506,6 +1654,7 @@ func normalizeProject(item *Project) {
 		}
 		for ai := range env.Artifacts {
 			env.Artifacts[ai].Source = item.Build.ArtifactSource
+			env.Artifacts[ai].NodeGroups = normalizeNodeGroups(env.Artifacts[ai].NodeGroups)
 		}
 	}
 	if !item.Build.PreprocessEnabled {
@@ -1619,7 +1768,7 @@ func (s *Server) publish(w http.ResponseWriter, r *http.Request) {
 	var worker Worker
 	if baseRecord == nil {
 		var ok bool
-		worker, ok = s.selectPublishWorker(project, req.WorkerIDs)
+		worker, ok = s.selectPublishWorker(project, req.WorkerIDs, initiator)
 		if !ok {
 			fail(w, 400, "未配置可用 worker")
 			return
@@ -1729,12 +1878,19 @@ func (s *Server) preparePublish(req publishRequest) (Project, EnvConfig, *Record
 }
 
 func (s *Server) requireEnvNodePerm(user User, env EnvConfig) error {
-	if user.Role == "admin" {
-		return nil
-	}
 	s.store.mu.RLock()
 	defer s.store.mu.RUnlock()
 	for _, artifact := range env.Artifacts {
+		for _, group := range artifact.NodeGroups {
+			group = normalizeNodeGroup(group)
+			if hasNodeGroupAccess(user, group) {
+				continue
+			}
+			return fmt.Errorf("没有目标节点分组发布权限: %s", group)
+		}
+		if len(artifact.NodeGroups) > 0 {
+			continue
+		}
 		for _, nodeID := range artifact.NodeIDs {
 			if hasNodeAccess(user, nodeID) {
 				continue
@@ -1742,6 +1898,9 @@ func (s *Server) requireEnvNodePerm(user User, env EnvConfig) error {
 			label := nodeID
 			if idx := indexNode(s.store.Nodes, nodeID); idx >= 0 {
 				label = s.store.Nodes[idx].Code
+				if hasNodeGroupAccess(user, s.store.Nodes[idx].Group) {
+					continue
+				}
 			}
 			return fmt.Errorf("没有目标节点发布权限: %s", label)
 		}
@@ -1770,7 +1929,7 @@ func (s *Server) clearPublish(id string) {
 	delete(s.running, id)
 }
 
-func (s *Server) selectPublishWorker(project Project, overrideIDs []string) (Worker, bool) {
+func (s *Server) selectPublishWorker(project Project, overrideIDs []string, user User) (Worker, bool) {
 	s.store.mu.RLock()
 	defer s.store.mu.RUnlock()
 	workerIDs := project.Build.WorkerIDs
@@ -1788,7 +1947,8 @@ func (s *Server) selectPublishWorker(project Project, overrideIDs []string) (Wor
 		if len(allowed) > 0 && !allowed[worker.ID] {
 			continue
 		}
-		if indexNode(s.store.Nodes, worker.NodeID) < 0 {
+		nodeIdx := indexNode(s.store.Nodes, worker.NodeID)
+		if nodeIdx < 0 || !hasNodeGroupAccess(user, s.store.Nodes[nodeIdx].Group) {
 			continue
 		}
 		candidates = append(candidates, worker)
@@ -2129,13 +2289,13 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 		if _, err := os.Stat(source); err != nil {
 			return fmt.Errorf("产物不存在: %s（已查找 %s）", artifactSource, source)
 		}
-		for _, nodeID := range artifact.NodeIDs {
+		nodes := artifactTargetNodes(store, artifact)
+		if len(nodes) == 0 {
+			return fmt.Errorf("目标分组没有可发布节点: %s", strings.Join(artifact.NodeGroups, "、"))
+		}
+		for _, node := range nodes {
 			if err := ctx.Err(); err != nil {
 				return err
-			}
-			node, ok := findNode(store, nodeID)
-			if !ok {
-				return fmt.Errorf("目标节点不存在: %s", nodeID)
 			}
 			if node.Type == "ssh" {
 				secret, _ := findSecret(store, node.SecretID)
@@ -2192,6 +2352,38 @@ func deployArtifacts(ctx context.Context, store *Store, project Project, env Env
 	}
 	logLine("部署文件同步完成")
 	return nil
+}
+
+func artifactTargetNodes(store *Store, artifact ArtifactRule) []Node {
+	nodes := []Node{}
+	seen := map[string]bool{}
+	groups := normalizeNodeGroups(artifact.NodeGroups)
+	if len(groups) > 0 {
+		groupSet := map[string]bool{}
+		for _, group := range groups {
+			groupSet[group] = true
+		}
+		store.mu.RLock()
+		defer store.mu.RUnlock()
+		for _, node := range store.Nodes {
+			if !groupSet[normalizeNodeGroup(node.Group)] || seen[node.ID] {
+				continue
+			}
+			seen[node.ID] = true
+			nodes = append(nodes, node)
+		}
+		return nodes
+	}
+	for _, nodeID := range artifact.NodeIDs {
+		if nodeID == "" || seen[nodeID] {
+			continue
+		}
+		if node, ok := findNode(store, nodeID); ok {
+			seen[nodeID] = true
+			nodes = append(nodes, node)
+		}
+	}
+	return nodes
 }
 
 func releaseSourcePath(releaseDir, source string) string {

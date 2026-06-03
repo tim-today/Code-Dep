@@ -569,6 +569,24 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   max-height: calc(100vh - 32px);
   overflow: hidden;
 }
+.publish-dialog.form-mode {
+  width: min(680px, calc(100vw - 24px));
+  height: 380px;
+  max-height: calc(100vh - 24px);
+  overflow: visible;
+}
+.publish-dialog.form-mode .publish-workspace {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.publish-dialog.form-mode .form-grid {
+  grid-template-columns: 1fr;
+}
+.publish-dialog.form-mode #liveLog {
+  display: none;
+}
 .raw-log-dialog {
   width: min(1180px, calc(100vw - 32px));
   height: min(820px, calc(100vh - 32px));
@@ -1578,36 +1596,133 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   display: grid;
   gap: 8px;
   max-height: 300px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 10px;
   background: var(--surface-low);
 }
-.perm-row {
+.perm-editor .perm-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 88px 88px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px 14px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--surface);
+  min-width: 0;
 }
-.perm-row strong,
-.perm-row small {
+.perm-editor.user-node-picker .perm-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.perm-editor .perm-row > div {
+  min-width: 0;
+}
+.perm-editor .perm-row strong,
+.perm-editor .perm-row small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.perm-row small {
+.perm-editor .perm-row small {
   color: var(--muted);
   margin-top: 2px;
 }
-.perm-row label {
+.perm-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.perm-actions label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-low);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 28px;
+  white-space: nowrap;
+}
+.perm-actions label:has(input:checked) {
+  border-color: rgba(26, 115, 232, .35);
+  background: rgba(26, 115, 232, .08);
+  color: var(--primary);
+}
+.perm-actions label input {
+  flex: 0 0 auto;
+}
+.perm-table-wrap {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  margin-top: 6px;
+}
+.perm-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.perm-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-mid);
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  z-index: 1;
+}
+.perm-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+.perm-table tr:hover td {
+  background: var(--surface-low);
+}
+.perm-table tr:last-child td {
+  border-bottom: 0;
+}
+.perm-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.perm-name-cell strong {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.perm-name-cell small {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.perm-table td input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin: 0;
+  vertical-align: middle;
 }
 .empty-cell {
   padding: 22px;
@@ -1949,10 +2064,10 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
 .hi-menu-btn .material-symbols-outlined { font-size: 16px; }
 .hi-menu {
   display: none;
-  position: absolute;
-  right: 4px;
-  top: 100%;
-  z-index: 20;
+  position: fixed;
+  right: auto;
+  top: auto;
+  z-index: 200;
   min-width: 120px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -2095,11 +2210,15 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   gap: 8px;
 }
 .log-detail-actions .primary,
-.log-detail-actions .danger {
+.log-detail-actions .danger,
+.log-detail-actions .btn-full-log {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 12px;
+}
+.log-detail-actions .btn-full-log {
+  margin-left: auto;
 }
 
 
@@ -2205,7 +2324,7 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
   .topbar-brand strong { display: none; }
   .search-box { display: none; }
   .page-head, .canvas { padding-left: 16px; padding-right: 16px; }
-  .form-grid, .row, .script-grid, .publish-workspace #publishBody .form-grid, .publish-form-line, .config-layout, .detail-grid, .settings-grid, .pipeline-repo-grid, .pipeline-build-grid, .target-grid, .pipeline-bottom-grid, .perm-row, .repo-row-3, .repo-row-2 { grid-template-columns: 1fr; }
+  .form-grid, .row, .script-grid, .publish-workspace #publishBody .form-grid, .publish-form-line, .config-layout, .detail-grid, .settings-grid, .pipeline-repo-grid, .pipeline-build-grid, .target-grid, .pipeline-bottom-grid, .repo-row-3, .repo-row-2 { grid-template-columns: 1fr; }
   .project-hero { align-items: flex-start; flex-wrap: wrap; }
   .project-header-card { align-items: flex-start; flex-wrap: wrap; }
   .detail-actions { width: 100%; margin-left: 0; justify-content: flex-end; }
@@ -2217,6 +2336,9 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
     height: calc(100vh - 12px);
     max-height: calc(100vh - 12px);
   }
+  .publish-dialog.form-mode {
+    height: auto;
+  }
   .publish-workspace { padding: 12px; }
   .command-head {
     grid-template-columns: minmax(0, 1fr) 34px;
@@ -2225,5 +2347,12 @@ dialog::backdrop { background: rgba(25, 28, 35, .36); }
     grid-column: 1 / -1;
     grid-row: 2;
     text-align: left;
+  }
+  .perm-editor .perm-row {
+    grid-template-columns: 1fr;
+  }
+  .perm-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }

@@ -206,17 +206,83 @@ func TestSecretUpdatePreservesSensitiveFieldsWhenOmitted(t *testing.T) {
 }
 
 func TestRequireEnvNodePermForRegularUser(t *testing.T) {
-	server := &Server{store: &Store{Nodes: []Node{{ID: "node1", Code: "prod-a"}, {ID: "node2", Code: "prod-b"}}}}
-	user := User{ID: "u1", Role: "user", NodeIDs: []string{"node1"}}
-	env := EnvConfig{Artifacts: []ArtifactRule{{NodeIDs: []string{"node1", "node2"}}}}
+	server := &Server{store: &Store{Nodes: []Node{{ID: "node1", Code: "prod-a", Group: "prod"}, {ID: "node2", Code: "prod-b", Group: "gray"}}}}
+	user := User{ID: "u1", Role: "user", NodeGroups: []string{"prod"}}
+	env := EnvConfig{Artifacts: []ArtifactRule{{NodeGroups: []string{"prod", "gray"}}}}
 
 	err := server.requireEnvNodePerm(user, env)
 
-	if err == nil || !strings.Contains(err.Error(), "prod-b") {
-		t.Fatalf("expected unauthorized node error for prod-b, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "gray") {
+		t.Fatalf("expected unauthorized group error for gray, got %v", err)
 	}
 	if err := server.requireEnvNodePerm(User{Role: "admin"}, env); err != nil {
-		t.Fatalf("admin should access all nodes: %v", err)
+		t.Fatalf("empty admin node permissions should access all nodes: %v", err)
+	}
+	restrictedAdmin := User{Role: "admin", NodeGroups: []string{"prod"}}
+	if err := server.requireEnvNodePerm(restrictedAdmin, env); err == nil || !strings.Contains(err.Error(), "gray") {
+		t.Fatalf("restricted admin should be denied gray group, got %v", err)
+	}
+}
+
+func TestProjectPermissionsDefaultOpenAndRestrictAdmins(t *testing.T) {
+	admin := User{Role: "admin"}
+	if !hasProjectAccess(admin, "project-1", "edit") || !canCreateProject(admin) {
+		t.Fatalf("empty admin project permissions should be fully open")
+	}
+	admin.ProjectPerms = []ProjectPerm{{ProjectID: "project-1", CanRun: true, CanEdit: false}}
+	if !hasProjectAccess(admin, "project-1", "run") {
+		t.Fatalf("configured admin should run authorized project")
+	}
+	if hasProjectAccess(admin, "project-1", "edit") {
+		t.Fatalf("configured admin should not edit without edit permission")
+	}
+	if hasProjectAccess(admin, "project-2", "view") {
+		t.Fatalf("configured admin should not view unauthorized project")
+	}
+	if canCreateProject(admin) {
+		t.Fatalf("configured admin should not create unscoped projects")
+	}
+}
+
+func TestDeployArtifactsExpandsNodeGroups(t *testing.T) {
+	root := t.TempDir()
+	releaseDir := filepath.Join(root, "release")
+	targetA := filepath.Join(root, "target-a")
+	targetB := filepath.Join(root, "target-b")
+	targetC := filepath.Join(root, "target-c")
+	if err := os.MkdirAll(releaseDir, 0755); err != nil {
+		t.Fatalf("create release dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(releaseDir, "app.txt"), []byte("artifact"), 0644); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	store := &Store{
+		Nodes: []Node{
+			{ID: "node1", Code: "local1", Type: "local", Group: "prod", BaseDir: targetA},
+			{ID: "node2", Code: "local2", Type: "local", Group: "prod", BaseDir: targetB},
+			{ID: "node3", Code: "local3", Type: "local", Group: "gray", BaseDir: targetC},
+		},
+	}
+	project := Project{Build: BuildConfig{ArtifactSource: "."}}
+	env := EnvConfig{Artifacts: []ArtifactRule{{
+		Source:     ".",
+		TargetDir:  "app",
+		NodeGroups: []string{"prod"},
+	}}}
+	if err := deployArtifacts(context.Background(), store, project, env, releaseDir, t.Logf); err != nil {
+		t.Fatalf("deployArtifacts returned error: %v", err)
+	}
+	for _, target := range []string{targetA, targetB} {
+		got, err := os.ReadFile(filepath.Join(target, "app", "app.txt"))
+		if err != nil {
+			t.Fatalf("read deployed artifact from %s: %v", target, err)
+		}
+		if string(got) != "artifact" {
+			t.Fatalf("artifact in %s = %q, want artifact", target, got)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(targetC, "app", "app.txt")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected deploy to non-selected group: %v", err)
 	}
 }
 

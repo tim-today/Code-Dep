@@ -44,6 +44,11 @@ const I18N = {
     "en": "All Projects",
     "zh-TW": "全部專案"
   },
+  "all_groups": {
+    "zh": "全部分组",
+    "en": "All Groups",
+    "zh-TW": "全部分組"
+  },
   "col_code": {
     "zh": "编号",
     "en": "Code",
@@ -265,9 +270,9 @@ const I18N = {
     "zh-TW": "僅顯示最近日誌，執行中可強制終止。"
   },
   "raw_log": {
-    "zh": "Raw 日志",
-    "en": "Raw Log",
-    "zh-TW": "Raw 日誌"
+    "zh": "完整日志",
+    "en": "Full Log",
+    "zh-TW": "完整日誌"
   },
   "raw_log_title": {
     "zh": "Raw 日志",
@@ -413,6 +418,11 @@ const I18N = {
     "zh": "目标节点",
     "en": "Target Nodes",
     "zh-TW": "目標節點"
+  },
+  "label_target_group": {
+    "zh": "目标分组",
+    "en": "Target Groups",
+    "zh-TW": "目標分組"
   },
   "label_target_dir": {
     "zh": "目标目录",
@@ -689,6 +699,16 @@ const I18N = {
     "en": "Address",
     "zh-TW": "地址"
   },
+  "node_group": {
+    "zh": "节点分组",
+    "en": "Node Group",
+    "zh-TW": "節點分組"
+  },
+  "default_node_group": {
+    "zh": "默认分组",
+    "en": "Default Group",
+    "zh-TW": "預設分組"
+  },
   "node_dir": {
     "zh": "目录",
     "en": "Directory",
@@ -815,14 +835,14 @@ const I18N = {
     "zh-TW": "專案授權"
   },
   "user_node_perms": {
-    "zh": "节点授权",
-    "en": "Node Access",
-    "zh-TW": "節點授權"
+    "zh": "节点分组授权",
+    "en": "Node Group Access",
+    "zh-TW": "節點分組授權"
   },
   "user_node_perm_hint": {
-    "zh": "普通用户发布时只能使用已授权目标服务器。",
-    "en": "Regular users can publish only to authorized target servers.",
-    "zh-TW": "一般使用者發佈時只能使用已授權目標伺服器。"
+    "zh": "普通用户发布时只能使用已授权目标分组。",
+    "en": "Regular users can publish only to authorized target groups.",
+    "zh-TW": "一般使用者發佈時只能使用已授權目標分組。"
   },
   "user_admin": {
     "zh": "管理员",
@@ -835,14 +855,14 @@ const I18N = {
     "zh-TW": "一般使用者"
   },
   "user_admin_hint": {
-    "zh": "管理员拥有全部项目和节点权限，无需单独授权。",
-    "en": "Admins have full access to all projects and nodes.",
-    "zh-TW": "管理員擁有全部專案和節點權限，無需單獨授權。"
+    "zh": "未配置授权时全部开放；配置后管理员也按授权限制。",
+    "en": "Empty permissions allow all; configured permissions also restrict admins.",
+    "zh-TW": "未配置授權時全部開放；配置後管理員也按授權限制。"
   },
   "user_normal_hint": {
-    "zh": "普通用户仅能操作已授权项目和目标服务器。",
-    "en": "Regular users can only access authorized projects and target servers.",
-    "zh-TW": "一般使用者僅能操作已授權專案和目標伺服器。"
+    "zh": "未配置授权时全部开放；配置后仅能操作已授权项目和目标分组。",
+    "en": "Empty permissions allow all; configured permissions restrict projects and target groups.",
+    "zh-TW": "未配置授權時全部開放；配置後僅能操作已授權專案和目標分組。"
   },
   "user_no_perm": {
     "zh": "无授权",
@@ -1048,6 +1068,26 @@ const I18N = {
     "zh": "选择节点",
     "en": "Select Nodes",
     "zh-TW": "選擇節點"
+  },
+  "select_group": {
+    "zh": "选择分组",
+    "en": "Select Groups",
+    "zh-TW": "選擇分組"
+  },
+  "filter_groups": {
+    "zh": "过滤分组",
+    "en": "Filter Groups",
+    "zh-TW": "篩選分組"
+  },
+  "no_group_selected": {
+    "zh": "未选择分组",
+    "en": "No groups",
+    "zh-TW": "未選擇分組"
+  },
+  "nodes_count": {
+    "zh": "个节点",
+    "en": "nodes",
+    "zh-TW": "個節點"
   },
   "all_workers": {
     "zh": "全部 worker",

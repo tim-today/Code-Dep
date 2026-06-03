@@ -102,6 +102,14 @@ function nodeName(id) {
   return state.nodes.find(n => n.id === id)?.code || "-";
 }
 
+function nodeGroupName(group = "") {
+  return String(group || t('default_node_group')).trim() || t('default_node_group');
+}
+
+function nodeGroups() {
+  return [...new Set(state.nodes.map(n => nodeGroupName(n.group)))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
 function workerName(id) {
   return state.workers.find(w => w.id === id)?.name || "-";
 }
@@ -237,18 +245,17 @@ function roleLabel(role) {
 }
 
 function userPermSummary(u) {
-  if (u.role === "admin") return t('all_projects');
   const projects = (u.projectPerms || []).map(p => {
     const proj = state.projects.find(x => x.id === p.projectId);
     const flags = [p.canRun ? t('run') : "", p.canEdit ? t('change') : ""].filter(Boolean).join("/");
     return proj ? `${proj.name}(${flags})` : "";
-  }).filter(Boolean).join("、") || t('user_no_perm');
-  const nodes = (u.nodeIds || []).map(nodeName).filter(x => x !== "-").join("、") || t('user_no_node_perm');
-  return `${projects} · ${t('user_node_perms')}: ${nodes}`;
+  }).filter(Boolean).join("、") || t('all_projects');
+  const groups = (u.nodeGroups || []).map(nodeGroupName).join("、") || (u.nodeIds || []).map(nodeName).filter(x => x !== "-").join("、") || t('all_groups');
+  return `${projects} · ${t('user_node_perms')}: ${groups}`;
 }
 
 function projectPerm(projectId) {
-  if (isAdmin()) return { canRun: true, canEdit: true };
+  if (!(state.currentUser?.projectPerms || []).length) return { canRun: true, canEdit: true };
   return (state.currentUser?.projectPerms || []).find(p => p.projectId === projectId) || {};
 }
 
@@ -261,7 +268,21 @@ function canEditProject(projectId) {
 }
 
 function canUseNode(nodeId) {
-  return isAdmin() || (state.currentUser?.nodeIds || []).includes(nodeId);
+  const nodeGroups = state.currentUser?.nodeGroups || [];
+  const nodeIds = state.currentUser?.nodeIds || [];
+  if (!nodeGroups.length && !nodeIds.length) return true;
+  if (nodeIds.includes(nodeId)) return true;
+  const node = state.nodes.find(n => n.id === nodeId);
+  return !!node && canUseNodeGroup(node.group);
+}
+
+function canUseNodeGroup(group) {
+  const groups = state.currentUser?.nodeGroups || [];
+  return !groups.length || groups.includes(nodeGroupName(group));
+}
+
+function canCreateProject() {
+  return isAdmin() && !(state.currentUser?.projectPerms || []).length;
 }
 
 function renderLogin() {
@@ -401,7 +422,7 @@ function render() {
   $("#pageDesc").textContent = desc;
   $("#primaryBtn").textContent = btn;
   $("#primaryBtn").style.display = btn ? "" : "none";
-  if (state.view === "projects" && !isAdmin()) $("#primaryBtn").style.display = "none";
+  if (state.view === "projects" && !canCreateProject()) $("#primaryBtn").style.display = "none";
   ({ projects: renderProjects, "project-detail": renderProjectDetail, "project-editor": renderProjectEditor, global: renderGlobalConfig, records: renderRecords }[state.view])();
   initShellEditors();
   syncRoute();
@@ -447,9 +468,15 @@ function escAttr(s = "") {
 }
 
 function projectDeployNodes(project) {
-  const ids = new Set();
-  (project.environments || []).forEach(env => (env.artifacts || []).forEach(a => (a.nodeIds || []).forEach(id => ids.add(id))));
-  return [...ids].map(nodeName).filter(x => x !== "-").join("、") || "-";
+  const groups = new Set();
+  (project.environments || []).forEach(env => (env.artifacts || []).forEach(a => {
+    (a.nodeGroups || []).forEach(group => groups.add(nodeGroupName(group)));
+    if (!(a.nodeGroups || []).length) (a.nodeIds || []).forEach(id => {
+      const node = state.nodes.find(n => n.id === id);
+      if (node) groups.add(nodeGroupName(node.group));
+    });
+  }));
+  return [...groups].join("、") || "-";
 }
 
 function maskUrl(url = "") {
@@ -473,12 +500,12 @@ function renderNodes() {
   $("#content").innerHTML = state.nodes.length ? `
     <section class="card">
       <div class="section-head"><div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div><button class="primary" onclick="editNode()">${t('new_node_btn')}</button></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('secret_type')}</th><th>${t('node_address')}</th><th>${t('node_dir')}</th><th>${t('node_secret')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
-    ${state.nodes.map(n => `<tr>
-      <td class="mono"><strong>${esc(n.code)}</strong><br>${statusBadge(n.status || "unknown")}</td><td><span class="badge">${esc(n.type)}</span></td><td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : "-")}</td>
+      <div class="table-wrap"><table class="table"><thead><tr><th>${t('secret_code')}</th><th>${t('col_group')}</th><th>${t('secret_type')}</th><th>${t('node_address')}</th><th>${t('node_dir')}</th><th>${t('node_secret')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
+    ${nodeGroups().map(group => state.nodes.filter(n => nodeGroupName(n.group) === group).map(n => `<tr>
+      <td class="mono"><strong>${esc(n.code)}</strong><br>${statusBadge(n.status || "unknown")}</td><td><span class="badge">${esc(group)}</span></td><td><span class="badge">${esc(n.type)}</span></td><td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : "-")}</td>
       <td class="mono">${esc(n.baseDir || "-")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td><td>${esc(state.secrets.find(s => s.id === n.secretId)?.code || "-")}</td>
       <td class="actions"><button class="action-icon" title="${t('btn_edit')}" onclick="editNode('${n.id}')"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" title="${t('btn_delete')}" onclick="removeItem('nodes','${n.id}')"><span class="material-symbols-outlined">delete</span></button></td>
-    </tr>`).join("")}</tbody></table></div></section>` : `<div class="empty">${t('empty_nodes')}</div>`;
+    </tr>`).join("")).join("")}</tbody></table></div></section>` : `<div class="empty">${t('empty_nodes')}</div>`;
 }
 
 function renderGlobalConfig() {
@@ -580,15 +607,16 @@ function renderGlobalConfig() {
           <div class="title-icon"><span class="material-symbols-outlined">dns</span><h2>${t('global_nodes')}</h2></div>
           <button class="primary" onclick="editNode()"><span class="material-symbols-outlined">add</span>${t('new_node_btn')}</button>
         </div>
-        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t("code")}</th><th>${t("type")}</th><th>${t('address')}</th><th>${t('status_label')}</th><th>${t('console')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
-          ${state.nodes.map(n => `<tr>
+        <div class="table-wrap"><table class="table compact-table"><thead><tr><th>${t("code")}</th><th>${t('col_group')}</th><th>${t("type")}</th><th>${t('address')}</th><th>${t('status_label')}</th><th>${t('console')}</th><th class="right">${t('col_actions')}</th></tr></thead><tbody>
+          ${nodeGroups().map(group => state.nodes.filter(n => nodeGroupName(n.group) === group).map(n => `<tr>
             <td class="mono">${esc(n.code)}</td>
+            <td><span class="badge">${esc(group)}</span></td>
             <td><span class="badge">${esc(n.type)}</span></td>
             <td class="mono">${esc(n.type === "ssh" ? `${n.user || ""}@${n.host}:${n.port || 22}` : n.baseDir || "-")}</td>
             <td>${statusBadge(n.status || "unknown")}${n.lastError ? `<br><small class="error-text">${esc(n.lastError)}</small>` : ""}</td>
             <td><button class="console-btn" onclick="openConsole('${n.id}')"><span class="material-symbols-outlined">terminal</span>${t('console')}</button></td>
             <td class="actions"><button class="action-icon" onclick="editNode('${n.id}')" title="${t('modal_title')}"><span class="material-symbols-outlined">edit</span></button><button class="action-icon danger" onclick="removeItem('nodes','${n.id}')" title="${t('btn_delete')}"><span class="material-symbols-outlined">delete</span></button></td>
-          </tr>`).join("") || `<tr><td colspan="6" class="empty-cell">${t('empty_node')}</td></tr>`}
+          </tr>`).join("")).join("") || `<tr><td colspan="7" class="empty-cell">${t('empty_node')}</td></tr>`}
         </tbody></table></div>
       </section>
     </div>`;
@@ -755,9 +783,20 @@ function historyDuration(record) {
 
 function toggleHistoryMenu(id, ev) {
   ev.stopPropagation();
-  closeHistoryMenus();
   const menu = document.getElementById(id);
-  if (menu) menu.classList.toggle("open");
+  if (!menu) return;
+  const isOpen = menu.classList.contains("open");
+  closeHistoryMenus();
+  if (!isOpen) {
+    menu.classList.add("open");
+    const btn = ev.currentTarget.closest(".hi-menu-btn") || ev.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.top = `${rect.bottom + 4}px`;
+    const menuWidth = menu.offsetWidth || 120;
+    menu.style.left = `${rect.right - menuWidth}px`;
+    menu.style.right = "auto";
+  }
 }
 
 function closeHistoryMenus() {
@@ -1039,10 +1078,11 @@ function editSecret(id = "") {
 }
 
 function editNode(id = "") {
-  const n = state.nodes.find(x => x.id === id) || { type: "local", port: 22 };
+  const n = state.nodes.find(x => x.id === id) || { type: "local", port: 22, group: t('default_node_group') };
   openModal(id ? t('edit_node') : t('btn_new_node'), `
     <div class="form-grid">
       <div class="field"><label>${t("code")}</label><input name="code" value="${esc(n.code)}"></div>
+      <div class="field"><label>${t('node_group')}</label><input name="group" list="nodeGroupList" value="${esc(nodeGroupName(n.group))}"><datalist id="nodeGroupList">${nodeGroups().map(g => `<option value="${esc(g)}"></option>`).join("")}</datalist></div>
       <div class="field"><label>${t("type")}</label><select name="type"><option value="local">${t('local_dir')}</option><option value="ssh">${t('node_ssh_remote')}</option></select></div>
       <div class="field"><label>Host</label><input name="host" value="${esc(n.host)}"></div>
       <div class="field"><label>${t('node_port')}</label><input name="port" type="number" value="${esc(n.port || 22)}"></div>
@@ -1096,6 +1136,7 @@ function editNotification(id = "") {
 function editUser(id = "") {
   const u = state.users.find(x => x.id === id) || { role: "user", projectPerms: [] };
   const permByProject = new Map((u.projectPerms || []).map(p => [p.projectId, p]));
+  const selectedGroups = (u.nodeGroups || []).length ? u.nodeGroups : [...new Set((u.nodeIds || []).map(id => state.nodes.find(n => n.id === id)).filter(Boolean).map(n => nodeGroupName(n.group)))];
   openModal(id ? t('edit_user') : t('btn_new_user'), `
     <div class="form-grid user-form">
       <div class="field"><label>${t('user_code')}</label><input name="code" value="${esc(u.code)}" placeholder="zhangsan"></div>
@@ -1105,31 +1146,52 @@ function editUser(id = "") {
       <div class="field full"><label>${t("remark")}</label><input name="remark" value="${esc(u.remark)}"></div>
       <div class="field full">
         <label>${t('user_perms')}</label>
-        <div class="perm-editor">
-          ${state.projects.map(p => {
-            const perm = permByProject.get(p.id) || {};
-            return `<div class="perm-row" data-project-id="${p.id}">
-              <div><strong>${esc(p.name)}</strong><small>${esc(p.code || "")} · ${esc(p.group || t('ungrouped'))}</small></div>
-              <label><input type="checkbox" class="perm-run" ${perm.canRun ? "checked" : ""}> ${t('user_can_run')}</label>
-              <label><input type="checkbox" class="perm-edit" ${perm.canEdit ? "checked" : ""}> ${t('user_can_edit')}</label>
-            </div>`;
-          }).join("") || `<div class="empty-cell">${t('user_empty_projects')}</div>`}
+        <div class="perm-table-wrap">
+          <table class="perm-table">
+            <thead>
+              <tr>
+                <th>${t('label_project_name')}</th>
+                <th style="width: 80px; text-align: center;">${t('user_can_run')}</th>
+                <th style="width: 80px; text-align: center;">${t('user_can_edit')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${state.projects.map(p => {
+                const perm = permByProject.get(p.id) || {};
+                return `<tr class="perm-row" data-project-id="${p.id}">
+                  <td>
+                    <div class="perm-name-cell" title="${esc(p.name)}">
+                      <strong>${esc(p.name)}</strong>
+                      <small>${esc(p.code || "")} · ${esc(p.group || t('ungrouped'))}</small>
+                    </div>
+                  </td>
+                  <td style="text-align: center;">
+                    <input type="checkbox" class="perm-run" ${perm.canRun ? "checked" : ""}>
+                  </td>
+                  <td style="text-align: center;">
+                    <input type="checkbox" class="perm-edit" ${perm.canEdit ? "checked" : ""}>
+                  </td>
+                </tr>`;
+              }).join("") || `<tr><td colspan="3" class="empty-cell">${t('user_empty_projects')}</td></tr>`}
+            </tbody>
+          </table>
         </div>
         <small id="roleHint" class="hint">${t('user_normal_hint')}</small>
       </div>
       <div class="field full">
         <label>${t('user_node_perms')}</label>
-        ${targetNodePicker(u.nodeIds || [], { className: "user-node-picker" })}
+        ${nodeGroupCheckboxes(selectedGroups)}
         <small class="hint">${t('user_node_perm_hint')}</small>
       </div>
     </div>`, async () => {
       const data = formData($("#modalBody"));
-      data.projectPerms = $$(".perm-row", $("#modalBody")).map(row => ({
+      data.projectPerms = $$(".perm-row[data-project-id]", $("#modalBody")).map(row => ({
         projectId: row.dataset.projectId,
         canRun: $(".perm-run", row).checked,
         canEdit: $(".perm-edit", row).checked
       })).filter(p => p.canRun || p.canEdit);
-      data.nodeIds = selectedTargetNodeIds($(".user-node-picker", $("#modalBody")));
+      data.nodeGroups = selectedNodeGroupChecks($("#modalBody"));
+      data.nodeIds = [];
       await save("users", id, data);
     });
   $('[name="role"]').value = u.role || "user";
@@ -1140,12 +1202,46 @@ function bindUserRoleToggle() {
   const role = $('[name="role"]');
   const sync = () => {
     const admin = role.value === "admin";
-    $$(".perm-row input", $("#modalBody")).forEach(input => input.disabled = admin);
-    $$(".user-node-picker button, .user-node-picker input", $("#modalBody")).forEach(input => input.disabled = admin);
     $("#roleHint").textContent = admin ? t('user_admin_hint') : t('user_normal_hint');
   };
   role.addEventListener("change", sync);
   sync();
+}
+
+function nodeGroupCheckboxes(selected = []) {
+  const selectedSet = new Set(selected.map(nodeGroupName));
+  const groups = nodeGroups();
+  if (!groups.length) return `<div class="empty-cell user-node-picker">${t('node_empty_hint')}</div>`;
+  return `<div class="perm-table-wrap user-node-picker">
+    <table class="perm-table">
+      <thead>
+        <tr>
+          <th>${t('node_group')}</th>
+          <th style="width: 80px; text-align: center;">${t('user_can_run')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${groups.map(group => {
+          const count = state.nodes.filter(n => nodeGroupName(n.group) === group).length;
+          return `<tr class="perm-row" data-node-group="${esc(group)}">
+            <td>
+              <div class="perm-name-cell" title="${esc(group)}">
+                <strong>${esc(group)}</strong>
+                <small>${count} ${t('nodes_count')}</small>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <input type="checkbox" class="node-group-check" ${selectedSet.has(group) ? "checked" : ""}>
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function selectedNodeGroupChecks(root) {
+  return $$(".user-node-picker .perm-row", root).filter(row => $(".node-group-check", row)?.checked).map(row => row.dataset.nodeGroup).filter(Boolean);
 }
 
 async function testNotification(id) {
@@ -1164,7 +1260,7 @@ function testSelectedNotification() {
 }
 
 function editProject(id = "") {
-  if ((id && !canEditProject(id)) || (!id && !isAdmin())) return alert(t('no_permission'));
+  if ((id && !canEditProject(id)) || (!id && !canCreateProject())) return alert(t('no_permission'));
   state.editorProjectId = id;
   state.view = "project-editor";
   render();
@@ -1172,7 +1268,7 @@ function editProject(id = "") {
 
 function renderProjectEditor(container = $("#content"), embedded = false) {
   const id = state.editorProjectId;
-  if ((id && !canEditProject(id)) || (!id && !isAdmin())) {
+  if ((id && !canEditProject(id)) || (!id && !canCreateProject())) {
     container.innerHTML = `<div class="empty">${t('no_edit_permission')}</div>`;
     return;
   }
@@ -1275,14 +1371,15 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
 }
 
 function envRow(e = { artifacts: [{}] }) {
-  const selected = e.artifacts?.[0]?.nodeIds || [];
+  const artifact = e.artifacts?.[0] || {};
+  const selected = (artifact.nodeGroups || []).length ? artifact.nodeGroups : [...new Set((artifact.nodeIds || []).map(id => state.nodes.find(n => n.id === id)).filter(Boolean).map(n => nodeGroupName(n.group)))];
   const compileDeploy = !!(e.compileDeploy || e.buildCommand);
   return `<div class="target-card env">
     <button type="button" class="target-delete" onclick="this.closest('.env').remove()" title="${t('delete_target')}"><span class="material-symbols-outlined">delete</span></button>
     <div class="target-title"><span class="material-symbols-outlined">hard_drive</span><strong>${t("target_card_title")} ${esc(e.name || "sit")}</strong></div>
     <div class="target-grid">
       <div class="field"><label>${t('label_target_env')}</label><input class="envName" value="${esc(e.name || "")}" placeholder="sit / uat / prod"></div>
-      <div class="field"><label>${t('label_target_node')}</label>${targetNodePicker(selected, { restrictAuthorized: true })}</div>
+      <div class="field"><label>${t('label_target_group')}</label>${targetGroupPicker(selected, { restrictAuthorized: true })}</div>
       <div class="field"><label>${t('label_target_dir')}</label><input class="targetDir" value="${esc(e.artifacts?.[0]?.targetDir || "")}" placeholder="${t('placeholder_target_dir')}"></div>
 
     </div>
@@ -1306,6 +1403,42 @@ function envRow(e = { artifacts: [{}] }) {
       scriptName: "deploy.sh"
     })}
   </div>`;
+}
+
+function targetGroupPicker(selected = [], options = {}) {
+  const groups = nodeGroups();
+  if (!groups.length) return `<div class="target-node-picker empty"><span class="hint">${t('node_empty_hint')}</span></div>`;
+  const className = options.className ? ` ${options.className}` : "";
+  const cleanSelected = selected.map(nodeGroupName);
+  return `<div class="target-node-picker${className}" data-selected="${esc(cleanSelected.join(","))}" data-picker-kind="group" data-restrict-authorized="${options.restrictAuthorized ? "true" : "false"}">
+    <div class="target-node-tags">${targetGroupTags(cleanSelected, options)}</div>
+    <button type="button" class="target-node-trigger" onclick="toggleTargetNodeDropdown(this, event)"><span class="material-symbols-outlined">add</span>${t('select_group')}</button>
+    <div class="target-node-dropdown">
+      <input class="target-node-filter" placeholder="${t('filter_groups')}" autocomplete="off" oninput="filterTargetNodes(this)">
+      <div class="target-node-options">${targetGroupOptions(cleanSelected, options)}</div>
+    </div>
+  </div>`;
+}
+
+function targetGroupTags(selected = [], options = {}) {
+  if (!selected.length) return `<span class="target-node-empty">${t('no_group_selected')}</span>`;
+  return selected.map(group => {
+    const unauthorized = options.restrictAuthorized && !canUseNodeGroup(group);
+    const label = `${group}${unauthorized ? t("unauthorized_suffix") : ""}`;
+    return `<span class="node-tag ${unauthorized ? "disabled" : ""}" title="${esc(label)}">${esc(label)}<button type="button" onclick="removeTargetNode(this, '${esc(group)}', event)" title="${t('remove')}"><span class="material-symbols-outlined">close</span></button></span>`;
+  }).join("");
+}
+
+function targetGroupOptions(selected = [], options = {}) {
+  return nodeGroups().map(group => {
+    const unauthorized = options.restrictAuthorized && !canUseNodeGroup(group);
+    const selectedGroup = selected.includes(group);
+    const count = state.nodes.filter(n => nodeGroupName(n.group) === group).length;
+    return `<button type="button" class="target-node-option ${selectedGroup ? "selected" : ""}" data-id="${esc(group)}" data-label="${esc(group)}" onclick="toggleTargetNode(this, event)" ${unauthorized ? "disabled" : ""}>
+    <span>${esc(group)}<small>${count} ${t('nodes_count')}${unauthorized ? t("unauthorized_suffix") : ""}</small></span>
+    <span class="material-symbols-outlined">${selectedGroup ? "check" : "add"}</span>
+  </button>`;
+  }).join("");
 }
 
 function targetNodePicker(selected = [], options = {}) {
@@ -1352,8 +1485,14 @@ function selectedTargetNodeIds(picker) {
 function setSelectedTargetNodeIds(picker, ids) {
   picker.dataset.selected = [...new Set(ids)].join(",");
   const options = { restrictAuthorized: picker.dataset.restrictAuthorized === "true" };
-  $(".target-node-tags", picker).innerHTML = targetNodeTags(selectedTargetNodeIds(picker), options);
-  $(".target-node-options", picker).innerHTML = targetNodeOptions(selectedTargetNodeIds(picker), options);
+  const selected = selectedTargetNodeIds(picker);
+  if (picker.dataset.pickerKind === "group") {
+    $(".target-node-tags", picker).innerHTML = targetGroupTags(selected, options);
+    $(".target-node-options", picker).innerHTML = targetGroupOptions(selected, options);
+    return;
+  }
+  $(".target-node-tags", picker).innerHTML = targetNodeTags(selected, options);
+  $(".target-node-options", picker).innerHTML = targetNodeOptions(selected, options);
 }
 
 function toggleTargetNodeDropdown(btn, ev) {
@@ -1563,7 +1702,8 @@ function editorEnvs(root = $("#projectEditor")) {
     artifacts: [{
       source: $('[name="build.artifactSource"]', root)?.value || ".",
       targetDir: $(".targetDir", row).value,
-      nodeIds: selectedTargetNodeIds($(".target-node-picker", row))
+      nodeGroups: selectedTargetNodeIds($(".target-node-picker", row)),
+      nodeIds: []
     }]
   })).filter(e => e.name);
 }
@@ -1712,7 +1852,7 @@ async function deleteProjectDeep(id, name) {
 }
 
 async function saveProject(id) {
-  if ((id && !canEditProject(id)) || (!id && !isAdmin())) return alert(t('no_permission'));
+  if ((id && !canEditProject(id)) || (!id && !canCreateProject())) return alert(t('no_permission'));
   await save("projects", id, editorProjectPayload());
 }
 
@@ -1753,14 +1893,34 @@ async function removeItem(type, id, ask = true) {
   await load();
 }
 
+function envTargetGroups(env) {
+  const groups = new Set();
+  (env.artifacts || []).forEach(a => {
+    (a.nodeGroups || []).forEach(group => groups.add(nodeGroupName(group)));
+    if (!(a.nodeGroups || []).length) (a.nodeIds || []).forEach(id => {
+      const node = state.nodes.find(n => n.id === id);
+      if (node) groups.add(nodeGroupName(node.group));
+    });
+  });
+  return [...groups];
+}
+
+function canUseEnv(env) {
+  return envTargetGroups(env).every(canUseNodeGroup);
+}
+
 function openPublish(id, baseRecord = null) {
   if (!canRunProject(id)) return alert(t('no_run_permission'));
   const p = state.projects.find(x => x.id === id);
-  const envOptions = (p.environments || []).map(e => `<option>${esc(e.name)}</option>`).join("");
+  const envOptions = (p.environments || []).map(e => {
+    const disabled = !canUseEnv(e);
+    const suffix = disabled ? ` ${t('unauthorized_suffix')}` : "";
+    return `<option value="${esc(e.name)}" ${disabled ? "disabled" : ""}>${esc(e.name)}${esc(suffix)}</option>`;
+  }).join("");
   const refs = state.gitRefs.length ? state.gitRefs : [p.git?.ref].filter(Boolean);
   $("#publishModeTag").textContent = baseRecord ? t('publish_redeploy') : t('publish_build');
   $("#publishBody").innerHTML = `
-    <div class="publish-form-line">
+    <div class="form-grid">
       <div class="field"><label>${t('nav_projects')}</label><input value="${esc(p.name)}" disabled></div>
       <div class="field"><label>${t("worker_label")}</label>${workerPicker(p.build?.workerIds || [])}</div>
       <div class="field"><label>${t('label_target_env')}</label><select id="pubEnv">${envOptions}</select></div>
@@ -1772,10 +1932,14 @@ function openPublish(id, baseRecord = null) {
   $("#publishModal").dataset.projectId = id;
   $("#publishModal").dataset.recordId = baseRecord?.id || "";
   $("#publishModal").dataset.activeRecordId = "";
+  $("#publishModal").classList.add("form-mode");
   $("#stopPublish").style.display = "none";
-  $("#startPublish").disabled = false;
+  $("#startPublish").style.display = "";
   $("#startPublish").textContent = t('btn_start_publish');
   $("#publishModal").showModal();
+  const firstAllowed = [...$("#pubEnv").options].find(o => !o.disabled);
+  if (firstAllowed) $("#pubEnv").value = firstAllowed.value;
+  $("#startPublish").disabled = !firstAllowed;
   if (!baseRecord) loadPublishRefs(p);
 }
 
@@ -1811,14 +1975,11 @@ async function startPublish(ev) {
       method: "POST",
       body: JSON.stringify({ projectId, recordId, env: $("#pubEnv").value, ref: $("#pubRef").value, mode: recordId ? "redeploy" : "build", workerIds: selectedTargetNodeIds($(".worker-picker")) })
     });
-    activeLogRecord = rec;
+    $("#publishModal").close();
     state.records = [rec, ...state.records.filter(r => r.id !== rec.id)];
-    $("#publishModal").dataset.activeRecordId = rec.id;
-    $("#publishBody").innerHTML = publishLogHeader(rec, []);
-    $("#stopPublish").style.display = "";
-    $("#stopPublish").disabled = false;
-    resetLiveLog([]);
-    streamLog(rec.id, { clear: false });
+    const view = state.view;
+    if (["projects", "project-detail", "records"].includes(view)) render();
+    showRecordLog(rec.id);
   } catch (e) {
     $("#startPublish").disabled = false;
     $("#startPublish").textContent = t('btn_start_publish');
@@ -1838,11 +1999,9 @@ async function stopCurrentPublish() {
 function publishLogHeader(record, lines) {
   const ref = record.ref || "-";
   const worker = record.workerName ? ` · <span class="worker-badge"><span class="material-symbols-outlined">precision_manufacturing</span>${esc(record.workerName)}</span>` : "";
-  const rawButton = record.id ? `<button type="button" onclick="openRawLog(${esc(JSON.stringify(record.id))})"><span class="material-symbols-outlined">article</span>${t('raw_log')}</button>` : "";
   return `<div class="toolbar log-toolbar">
     <span class="badge">${esc(record.projectName)} · ${esc(record.env)} · ${esc(record.version)} · ${t('publish_ref')}: ${esc(ref)}${worker}</span>
     <span class="hint">${t('publish_log_hint')}</span>
-    ${rawButton}
   </div>
   <div id="logProgress">${renderLogProgress(record, lines)}</div>`;
 }
@@ -1954,29 +2113,15 @@ function connectLogStream(id, tail = 0) {
   logStream.onerror = () => scheduleLogReconnect(id);
 }
 
-async function openRawLog(recordId) {
+async function showFullLog(recordId) {
   const id = recordId || activeLogRecord?.id || $("#publishModal").dataset.activeRecordId;
   if (!id) return;
+  closeLogStream();
   const record = await api(`/api/records/${id}`);
   const lines = record.log || [];
-  const ref = record.ref || "-";
-  $("#rawLogMeta").textContent = `${record.projectName || "-"} · ${record.env || "-"} · ${record.version || "-"} · ${t('publish_ref')}: ${ref}`;
-  $("#rawLogText").value = lines.length ? lines.join("\n") : t('no_log');
-  $("#copyRawLog").querySelector("span:last-child").textContent = t('raw_log_copy');
-  $("#rawLogDialog").showModal();
-}
-
-async function copyRawLog() {
-  const text = $("#rawLogText").value || "";
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    $("#rawLogText").select();
-    document.execCommand("copy");
-  }
-  const label = $("#copyRawLog").querySelector("span:last-child");
-  label.textContent = t('raw_log_copied');
-  setTimeout(() => { label.textContent = t('raw_log_copy'); }, 1200);
+  const text = lines.length ? lines.join("\n") : t('no_log');
+  $("#liveLog").textContent = text;
+  $("#liveLog").scrollTop = 0;
 }
 
 function scheduleLogReconnect(id) {
@@ -1997,7 +2142,8 @@ function redeploy(recordId) {
   const r = state.records.find(x => x.id === recordId);
   if (!canRunProject(r.projectId)) return alert(t('no_run_permission'));
   openPublish(r.projectId, r);
-  $("#pubEnv").value = r.env;
+  const option = [...$("#pubEnv").options].find(o => o.value === r.env && !o.disabled);
+  if (option) $("#pubEnv").value = r.env;
 }
 
 function showRecordLog(id) {
@@ -2016,6 +2162,7 @@ function showRecordLog(id) {
     + `<div class="toolbar log-detail-actions">
         ${canRedeploy ? `<button type="button" class="primary" onclick="redeploy('${r.id}')"><span class="material-symbols-outlined">replay</span>${t('redeploy_version')}</button>` : ""}
         ${canEditProject(r.projectId) && r.status !== "running" ? `<button type="button" class="danger" onclick="deleteRecord('${r.id}')"><span class="material-symbols-outlined">delete</span>${t('delete_record')}</button>` : ""}
+        ${r.id ? `<button type="button" class="btn-full-log" onclick="showFullLog('${r.id}')"><span class="material-symbols-outlined">article</span>${t('raw_log')}</button>` : ""}
       </div>`;
   $("#publishBody").innerHTML = headerHtml;
   resetLiveLog(tail);
@@ -2023,6 +2170,7 @@ function showRecordLog(id) {
   $("#stopPublish").style.display = r.status === "running" ? "" : "none";
   $("#stopPublish").disabled = false;
   $("#publishModal").dataset.activeRecordId = r.id;
+  $("#publishModal").classList.remove("form-mode");
   $("#publishModal").showModal();
   if (r.status === "running" && !stale) streamLog(id, { clear: false, tail: 0 });
 }
@@ -2043,6 +2191,7 @@ function showProjectLogs(projectId) {
   $("#startPublish").style.display = "none";
   $("#stopPublish").style.display = "none";
   $("#publishModal").dataset.activeRecordId = "";
+  $("#publishModal").classList.remove("form-mode");
   $("#publishModal").showModal();
 }
 
@@ -2267,7 +2416,6 @@ $("#primaryBtn").addEventListener("click", () => ({ projects: editProject, secre
 $("#modalSave").addEventListener("click", async ev => { ev.preventDefault(); try { await editing?.(); } catch (e) { alert(e.message); } });
 $("#startPublish").addEventListener("click", async ev => { try { $("#startPublish").style.display = ""; await startPublish(ev); } catch (e) { alert(e.message); } });
 $("#stopPublish").addEventListener("click", async () => { try { await stopCurrentPublish(); } catch (e) { alert(e.message); $("#stopPublish").disabled = false; } });
-$("#copyRawLog").addEventListener("click", async () => { try { await copyRawLog(); } catch (e) { alert(e.message); } });
 $("#publishModal").addEventListener("close", () => {
   const shouldRefresh = Boolean(activeLogRecord?.id || $("#publishModal").dataset.activeRecordId);
   $("#startPublish").style.display = "";
