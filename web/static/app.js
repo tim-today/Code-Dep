@@ -1,6 +1,6 @@
 const $ = (q, el = document) => el.querySelector(q);
 const $$ = (q, el = document) => [...el.querySelectorAll(q)];
-const state = { view: "projects", editorProjectId: "", detailProjectId: "", detailTab: "status", currentUser: null, projects: [], secrets: [], nodes: [], workers: [], notifications: [], users: [], records: [], gitRefs: [] };
+const state = { initialized: false, view: "projects", editorProjectId: "", detailProjectId: "", detailTab: "status", currentUser: null, projects: [], secrets: [], nodes: [], workers: [], notifications: [], users: [], records: [], gitRefs: [] };
 let editing = null;
 let detailTimer = null;
 let searchText = "";
@@ -52,12 +52,14 @@ async function load() {
     throw e;
   }
   applyBootstrap(data, false);
+  state.initialized = true;
   prevRecordStatuses_records = (data.records || []).map(r => ({ id: r.id, status: r.status }));
   applyRouteFromHash(false);
   render();
 }
 
 function applyBootstrap(data, shouldRender = true) {
+  state.initialized = true;
   Object.assign(state, {
     currentUser: data.currentUser || null,
     projects: data.projects || [],
@@ -129,16 +131,31 @@ function projectWorkerNames(project) {
 }
 
 function secretOptions(selected = "") {
-  return `<option value="">${t('not_select')}</option>${state.secrets.map(s => `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${esc(s.code)} · ${esc(s.type)}</option>`).join("")}`;
+  const hasSelected = !selected || state.secrets.some(s => s.id === selected);
+  let html = `<option value="">${t('not_select')}</option>${state.secrets.map(s => `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${esc(s.code)} · ${esc(s.type)}</option>`).join("")}`;
+  if (!hasSelected) {
+    html += `<option value="${esc(selected)}" selected style="display:none;">${t('loading') || "正在加载..."} (${esc(selected)})</option>`;
+  }
+  return html;
 }
 
 function nodeOptions(selected = "") {
   const valid = state.nodes.filter(n => n.status === "valid" || n.id === selected);
-  return `<option value="">${t('select_notification')}</option>${valid.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(n.type)}${n.status !== "valid" ? t("invalid_suffix") : ""}</option>`).join("")}`;
+  const hasSelected = !selected || valid.some(n => n.id === selected);
+  let html = `<option value="">${t('select_notification')}</option>${valid.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(n.type)}${n.status !== "valid" ? t("invalid_suffix") : ""}</option>`).join("")}`;
+  if (!hasSelected) {
+    html += `<option value="${esc(selected)}" selected style="display:none;">${t('loading') || "正在加载..."} (${esc(selected)})</option>`;
+  }
+  return html;
 }
 
 function notificationOptions(selected = "") {
-  return `<option value="">${t('none_select')}</option>${state.notifications.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(notifyTypeLabel(n.type))}</option>`).join("")}`;
+  const hasSelected = !selected || state.notifications.some(n => n.id === selected);
+  let html = `<option value="">${t('none_select')}</option>${state.notifications.map(n => `<option value="${n.id}" ${n.id === selected ? "selected" : ""}>${esc(n.code)} · ${esc(notifyTypeLabel(n.type))}</option>`).join("")}`;
+  if (!hasSelected) {
+    html += `<option value="${esc(selected)}" selected style="display:none;">${t('loading') || "正在加载..."} (${esc(selected)})</option>`;
+  }
+  return html;
 }
 
 function refPicker({ id, optionsId, name = "", value = "", refs = [], disabled = false, refresh = "" }) {
@@ -416,6 +433,10 @@ function openChangePassword() {
 }
 
 function render() {
+  if (state.currentUser && !state.initialized) {
+    $("#content").innerHTML = `<div class="empty" style="padding: 100px 0;"><span class="material-symbols-outlined" style="font-size: 48px; animation: spin 1.2s linear infinite;">sync</span><p style="margin-top: 15px; color: var(--text-muted); font-size: 15px;">${t('loading') || "正在加载数据..."}</p></div>`;
+    return;
+  }
   clearDetailTimer();
   renderAppShell();
   document.body.classList.toggle("detail-mode", state.view === "project-detail");
@@ -1974,7 +1995,22 @@ async function deleteProjectDeep(id, name) {
 
 async function saveProject(id) {
   if ((id && !canEditProject(id)) || (!id && !canCreateProject())) return alert(t('no_permission'));
-  await save("projects", id, editorProjectPayload());
+  const btn = document.querySelector(".pipeline-actions button.primary");
+  const originalHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="material-symbols-outlined" style="animation: spin 1.2s linear infinite;">sync</span>${t('saving') || "正在保存..."}`;
+  }
+  try {
+    await save("projects", id, editorProjectPayload());
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
 }
 
 function backToProjects() {
@@ -2454,6 +2490,9 @@ function initConsoleTerminal(nodeId) {
   consoleTerm = term;
   consoleFitAddon = fitAddon;
 
+  const node = state.nodes.find(n => n.id === nodeId);
+  term.write(`\x1b[1;34m⚡ 正在连接节点 ${esc(node?.code || "")}... / Connecting to node...\x1b[0m\r\n`);
+
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${protocol}//${location.host}/api/nodes/${nodeId}/console`);
   consoleSocket = ws;
@@ -2461,6 +2500,7 @@ function initConsoleTerminal(nodeId) {
   ws.onopen = () => {
     $("#consoleStatus").textContent = t('node_connected');
     $("#consoleStatus").className = "badge success";
+    term.write(`\x1b[1;32m✔ 连接建立成功！已进入交互终端。 / Connection established!\x1b[0m\r\n\x1b[90m节点类型: ${node?.type === "ssh" ? "SSH 远程" : "本地"} | 地址: ${node?.type === "ssh" ? node.host : node?.baseDir || "本地"}\x1b[0m\r\n\r\n`);
     sendConsoleResize();
   };
 
@@ -2475,13 +2515,14 @@ function initConsoleTerminal(nodeId) {
   ws.onclose = () => {
     $("#consoleStatus").textContent = t('node_disconnected');
     $("#consoleStatus").className = "badge";
-    term.write(`\r\n\x1b[33m[${t('terminal_disconnected')}]\x1b[0m\r\n`);
+    term.write(`\r\n\x1b[1;33mℹ [${t('terminal_disconnected') || "连接已断开"}] / Connection closed\x1b[0m\r\n`);
     consoleSocket = null;
   };
 
   ws.onerror = () => {
     $("#consoleStatus").textContent = t('node_conn_error');
     $("#consoleStatus").className = "badge failed";
+    term.write(`\r\n\x1b[1;31m✘ [${t('node_conn_error') || "连接错误"}] / Connection error. Please check node configuration or network status.\x1b[0m\r\n`);
   };
 
   term.onData(data => {
@@ -2623,7 +2664,22 @@ $("#globalSearch")?.addEventListener("input", ev => {
   render();
 });
 $("#primaryBtn").addEventListener("click", () => ({ projects: editProject, secrets: editSecret, nodes: editNode }[state.view])());
-$("#modalSave").addEventListener("click", async ev => { ev.preventDefault(); try { await editing?.(); } catch (e) { alert(e.message); } });
+$("#modalSave").addEventListener("click", async ev => {
+  ev.preventDefault();
+  const btn = $("#modalSave");
+  if (btn.disabled) return;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = t('saving') || "正在保存...";
+  try {
+    await editing?.();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
 $("#startPublish").addEventListener("click", async ev => { try { $("#startPublish").style.display = ""; await startPublish(ev); } catch (e) { alert(e.message); } });
 $("#stopPublish").addEventListener("click", async () => { try { await stopCurrentPublish(); } catch (e) { alert(e.message); $("#stopPublish").disabled = false; } });
 $("#publishModal").addEventListener("close", () => {

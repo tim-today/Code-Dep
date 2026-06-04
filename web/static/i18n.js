@@ -159,6 +159,16 @@ const I18N = {
     "en": "Save",
     "zh-TW": "儲存"
   },
+  "saving": {
+    "zh": "正在保存...",
+    "en": "Saving...",
+    "zh-TW": "正在儲存..."
+  },
+  "loading": {
+    "zh": "正在加载...",
+    "en": "Loading...",
+    "zh-TW": "正在載入..."
+  },
   "btn_delete": {
     "zh": "删除",
     "en": "Delete",

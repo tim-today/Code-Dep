@@ -302,7 +302,25 @@ func main() {
 	if port == "" {
 		port = defaultPort
 	}
-	log.Printf("code-dep listening on http://localhost:%s", port)
+
+	absDataDir, _ := filepath.Abs(dataDir)
+	banner := `
+   ______          __     ____                 
+  / ____/___  ____/ /__  / __ \___  ____  __  __
+ / /   / __ \/ __  / _ \/ / / / _ \/ __ \/ / / /
+/ /___/ /_/ / /_/ /  __/ /_/ /  __/ /_/ / /_/ / 
+\____/\____/\__,_/\___/_____/\___/ .___/\__, /  
+                                /_/    /____/   
+`
+	fmt.Printf("\x1b[36m%s\x1b[0m", banner)
+	fmt.Printf("  \x1b[1;32m✔ Server started successfully!\x1b[0m\n")
+	fmt.Printf("  \x1b[90m-------------------------------------------------------------\x1b[0m\n")
+	fmt.Printf("  \x1b[1m* Web UI:\x1b[0m \x1b[34;4mhttp://localhost:%s\x1b[0m\n", port)
+	fmt.Printf("  \x1b[1m* Data Dir:\x1b[0m \x1b[35m%s\x1b[0m\n", absDataDir)
+	fmt.Printf("  \x1b[1m* Default Admin:\x1b[0m admin / 123456\n")
+	fmt.Printf("  \x1b[90m-------------------------------------------------------------\x1b[0m\n")
+	fmt.Printf("  \x1b[33m💡 [Note] After logging in for the first time, please be sure to go to the global settings to change the default password.。\x1b[0m\n\n")
+
 	log.Fatal(http.ListenAndServe(":"+port, logging(server.requireAuth(mux))))
 }
 
