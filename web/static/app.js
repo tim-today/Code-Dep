@@ -81,6 +81,12 @@ function applyBootstrap(data, shouldRender = true) {
   checkRecordChanges(prevRecordStatuses_records, data.records || []);
   prevRecordStatuses_records = (data.records || []).map(r => ({ id: r.id, status: r.status }));
   ensureLiveSync();
+  if (data.systemVersion) {
+    const versionEl = $("#appVersion");
+    if (versionEl) {
+      versionEl.textContent = data.systemVersion.startsWith("v") ? data.systemVersion : "v" + data.systemVersion;
+    }
+  }
   if (shouldRender) render();
 }
 

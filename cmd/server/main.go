@@ -39,6 +39,7 @@ const (
 )
 
 var dataDir = "data"
+var Version = "v1.0.0"
 
 type Store struct {
 	mu            sync.RWMutex   `json:"-"`
@@ -240,6 +241,7 @@ type bootstrapPayload struct {
 	Users         []User         `json:"users"`
 	Projects      []Project      `json:"projects"`
 	Records       []Record       `json:"records"`
+	SystemVersion string         `json:"systemVersion"`
 }
 
 type JobHub struct {
@@ -313,7 +315,7 @@ func main() {
                                 /_/    /____/   
 `
 	fmt.Printf("\x1b[36m%s\x1b[0m", banner)
-	fmt.Printf("  \x1b[1;32m✔ Server started successfully!\x1b[0m\n")
+	fmt.Printf("  \x1b[1;32m✔ 服务启动成功 / Server started successfully! (Version: %s)\x1b[0m\n", Version)
 	fmt.Printf("  \x1b[90m-------------------------------------------------------------\x1b[0m\n")
 	fmt.Printf("  \x1b[1m* Web UI:\x1b[0m \x1b[34;4mhttp://localhost:%s\x1b[0m\n", port)
 	fmt.Printf("  \x1b[1m* Data Dir:\x1b[0m \x1b[35m%s\x1b[0m\n", absDataDir)
@@ -794,6 +796,7 @@ func (s *Server) bootstrapForUserLocked(user User) bootstrapPayload {
 		Notifications: append([]Notification(nil), s.store.Notifications...),
 		Projects:      filterProjectsForUser(s.store.Projects, user),
 		Records:       filterRecordsForUser(s.store.Records, user),
+		SystemVersion: Version,
 	}
 	if user.Role == "admin" {
 		payload.Users = sanitizeUsers(s.store.Users)
