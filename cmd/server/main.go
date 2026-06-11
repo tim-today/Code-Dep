@@ -2225,7 +2225,7 @@ func (s *Server) runPublish(ctx context.Context, project Project, env EnvConfig,
 	if strings.TrimSpace(env.DeployCommand) == "" {
 		logLine("未配置发布命令，部署文件同步完成即视为部署成功")
 	}
-	cleanupReleases(project, logLine)
+	s.cleanupReleases(project, logLine)
 	if !hasNotification(project) {
 		logLine("未配置消息通知，跳过消息推送")
 	}
@@ -3259,24 +3259,64 @@ func shQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-func cleanupReleases(project Project, logLine func(string, ...any)) {
+func (s *Server) cleanupReleases(project Project, logLine func(string, ...any)) {
 	keep := project.Retention.KeepReleases
 	if keep <= 0 {
 		keep = 5
 	}
-	root := filepath.Join(".code-dep", "releases", project.Code)
-	entries, err := os.ReadDir(root)
-	if err != nil || len(entries) <= keep {
+
+	s.store.mu.Lock()
+	var projectRecords []Record
+	for _, r := range s.store.Records {
+		if r.ProjectID == project.ID {
+			projectRecords = append(projectRecords, r)
+		}
+	}
+
+	if len(projectRecords) <= keep {
+		s.store.mu.Unlock()
 		return
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		ai, _ := entries[i].Info()
-		aj, _ := entries[j].Info()
-		return ai.ModTime().After(aj.ModTime())
+
+	// 按照 StartedAt 从新到旧排序
+	sort.Slice(projectRecords, func(i, j int) bool {
+		return projectRecords[i].StartedAt.After(projectRecords[j].StartedAt)
 	})
-	for _, entry := range entries[keep:] {
-		_ = os.RemoveAll(filepath.Join(root, entry.Name()))
-		logLine("清理旧版本: %s", entry.Name())
+
+	var toDelete []Record
+	for _, r := range projectRecords[keep:] {
+		if r.Status == "running" {
+			continue
+		}
+		toDelete = append(toDelete, r)
+	}
+
+	if len(toDelete) == 0 {
+		s.store.mu.Unlock()
+		return
+	}
+
+	toDeleteMap := make(map[string]bool)
+	for _, r := range toDelete {
+		toDeleteMap[r.ID] = true
+	}
+
+	newRecords := make([]Record, 0, len(s.store.Records))
+	for _, r := range s.store.Records {
+		if !toDeleteMap[r.ID] {
+			newRecords = append(newRecords, r)
+		}
+	}
+	s.store.Records = newRecords
+
+	s.store.saveRecordMeta(project.ID)
+	_ = s.store.saveMeta()
+	s.store.mu.Unlock()
+
+	for _, r := range toDelete {
+		_ = os.RemoveAll(filepath.Join(".code-dep", "releases", project.Code, r.Version))
+		s.store.removeRecordFile(r.ProjectID, r.ID)
+		logLine("清理旧版本: %s (记录: %s)", r.Version, r.ID)
 	}
 }
 

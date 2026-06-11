@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -369,5 +370,111 @@ func TestNormalizeDeployCommandSupportsNoWaitDirective(t *testing.T) {
 	want := `(java -jar app.jar) </dev/null >> "$_code_dep_log" 2>&1 &`
 	if !strings.Contains(got, want) {
 		t.Fatalf("normalized command missing %q: %q", want, got)
+	}
+}
+
+func TestCleanupReleases(t *testing.T) {
+	dataDir := t.TempDir()
+
+	projectCode := "test-project-cleanup-unique-id"
+	projectID := "proj-cleanup-1"
+
+	defer os.RemoveAll(filepath.Join(".code-dep", "releases", projectCode))
+
+	v1Dir := filepath.Join(".code-dep", "releases", projectCode, "v1")
+	v2Dir := filepath.Join(".code-dep", "releases", projectCode, "v2")
+	v3Dir := filepath.Join(".code-dep", "releases", projectCode, "v3")
+
+	os.MkdirAll(v1Dir, 0755)
+	os.MkdirAll(v2Dir, 0755)
+	os.MkdirAll(v3Dir, 0755)
+
+	logDir := filepath.Join(dataDir, "projects", projectID, "records")
+	os.MkdirAll(logDir, 0755)
+	os.WriteFile(filepath.Join(logDir, "rec1.log"), []byte("log 1"), 0600)
+	os.WriteFile(filepath.Join(logDir, "rec2.log"), []byte("log 2"), 0600)
+	os.WriteFile(filepath.Join(logDir, "rec3.log"), []byte("log 3"), 0600)
+
+	store := &Store{
+		dataDir: dataDir,
+		Records: []Record{
+			{
+				ID:        "rec1",
+				ProjectID: projectID,
+				Version:   "v1",
+				StartedAt: time.Now().Add(-30 * time.Minute),
+				Status:    "success",
+			},
+			{
+				ID:        "rec2",
+				ProjectID: projectID,
+				Version:   "v2",
+				StartedAt: time.Now().Add(-20 * time.Minute),
+				Status:    "success",
+			},
+			{
+				ID:        "rec3",
+				ProjectID: projectID,
+				Version:   "v3",
+				StartedAt: time.Now().Add(-10 * time.Minute),
+				Status:    "success",
+			},
+		},
+	}
+
+	server := &Server{store: store}
+	project := Project{
+		ID:   projectID,
+		Code: projectCode,
+		Retention: RetentionConfig{
+			KeepReleases: 2,
+		},
+	}
+
+	logs := []string{}
+	logLine := func(format string, args ...any) {
+		logs = append(logs, fmt.Sprintf(format, args...))
+	}
+
+	server.cleanupReleases(project, logLine)
+
+	server.store.mu.Lock()
+	records := server.store.Records
+	server.store.mu.Unlock()
+
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(records))
+	}
+
+	if _, err := os.Stat(v1Dir); !os.IsNotExist(err) {
+		t.Fatalf("expected v1 directory to be deleted")
+	}
+	if _, err := os.Stat(v2Dir); err != nil {
+		t.Fatalf("expected v2 directory to exist")
+	}
+	if _, err := os.Stat(v3Dir); err != nil {
+		t.Fatalf("expected v3 directory to exist")
+	}
+
+	if _, err := os.Stat(filepath.Join(logDir, "rec1.log")); !os.IsNotExist(err) {
+		t.Fatalf("expected rec1.log to be deleted")
+	}
+	if _, err := os.Stat(filepath.Join(logDir, "rec2.log")); err != nil {
+		t.Fatalf("expected rec2.log to exist")
+	}
+	if _, err := os.Stat(filepath.Join(logDir, "rec3.log")); err != nil {
+		t.Fatalf("expected rec3.log to exist")
+	}
+
+	idxBytes, err := os.ReadFile(filepath.Join(logDir, "index.json"))
+	if err != nil {
+		t.Fatalf("failed to read index.json: %v", err)
+	}
+	var idxMetas []recordMeta
+	if err := json.Unmarshal(idxBytes, &idxMetas); err != nil {
+		t.Fatalf("failed to unmarshal index.json: %v", err)
+	}
+	if len(idxMetas) != 2 {
+		t.Fatalf("expected index.json to have 2 metas, got %d", len(idxMetas))
 	}
 }
