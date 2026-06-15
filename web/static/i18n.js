@@ -299,6 +299,71 @@ const I18N = {
     "en": "Copied",
     "zh-TW": "已複製"
   },
+  "copy_project": {
+    "zh": "复制项目",
+    "en": "Copy Project",
+    "zh-TW": "複製專案"
+  },
+  "copy_project_hint": {
+    "zh": "复制当前项目的全套配置并快速创建为一个新项目。",
+    "en": "Copy all configurations of the current project and quickly create a new one.",
+    "zh-TW": "複製目前專案的全套設定并快速建立為一個新專案。"
+  },
+  "confirm_copy_project": {
+    "zh": "确定要复制该项目吗？",
+    "en": "Are you sure you want to copy this project?",
+    "zh-TW": "確定要複製該專案嗎？"
+  },
+  "copying": {
+    "zh": "复制中...",
+    "en": "Copying...",
+    "zh-TW": "複製中..."
+  },
+  "backup_restore": {
+    "zh": "系统备份与还原",
+    "en": "System Backup & Restore",
+    "zh-TW": "系統備份與還原"
+  },
+  "btn_backup": {
+    "zh": "备份系统数据",
+    "en": "Backup System Data",
+    "zh-TW": "備份系統資料"
+  },
+  "btn_restore": {
+    "zh": "还原系统数据",
+    "en": "Restore System Data",
+    "zh-TW": "還原系統資料"
+  },
+  "backup_restore_hint": {
+    "zh": "提示：备份不包含历史发布记录和构建日志，还原会覆盖系统当前所有节点、用户、密钥、worker 和项目数据，操作不可逆。",
+    "en": "Hint: Backup does not include release records and build logs. Restoration will overwrite all current nodes, users, secrets, workers, and project configs. This action is irreversible.",
+    "zh-TW": "提示：備份不包含歷史發佈記錄和建置日誌，還原會覆蓋系統目前所有節點、使用者、密鑰、worker 和專案資料，操作不可逆。"
+  },
+  "confirm_restore_1": {
+    "zh": "确定要还原该备份文件吗？这会清除现有系统的所有节点、用户、密钥、worker 和项目配置！",
+    "en": "Are you sure you want to restore this backup file? This will clear all existing nodes, users, secrets, workers, and project configs!",
+    "zh-TW": "確定要還原該備份檔案嗎？這會清除現有系統的所有節點、使用者、密鑰、worker 和專案設定！"
+  },
+  "confirm_restore_2": {
+    "zh": "警告：当前系统所有数据将被永久覆盖且不可撤销！你真的确定要执行此操作吗？",
+    "en": "WARNING: All current system data will be permanently overwritten and cannot be undone! Are you absolutely sure you want to proceed?",
+    "zh-TW": "警告：目前系統所有資料將被永久覆蓋且不可撤銷！你真的確定要執行此操作嗎？"
+  },
+  "restore_success": {
+    "zh": "还原成功！系统将重新加载。",
+    "en": "Restore successful! System will reload.",
+    "zh-TW": "還原成功！系統將重新載入。"
+  },
+  "restore_failed": {
+    "zh": "还原失败: ",
+    "en": "Restore failed: ",
+    "zh-TW": "還原失敗: "
+  },
+  "backup_failed": {
+    "zh": "备份失败: ",
+    "en": "Backup failed: ",
+    "zh-TW": "備份失敗: "
+  },
   "publish_env": {
     "zh": "环境",
     "en": "Environment",

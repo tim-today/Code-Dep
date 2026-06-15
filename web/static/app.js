@@ -660,6 +660,18 @@ function renderGlobalConfig() {
           </tr>`).join("") || `<tr><td colspan="7" class="empty-cell">${t('empty_node')}</td></tr>`}
         </tbody></table></div>
       </section>
+
+      <section class="card">
+        <div class="section-head">
+          <div class="title-icon"><span class="material-symbols-outlined">backup</span><h2>${t('backup_restore')}</h2></div>
+        </div>
+        <div class="settings-action-row" style="padding: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <button type="button" onclick="exportBackup()"><span class="material-symbols-outlined">download</span>${t('btn_backup')}</button>
+          <button type="button" class="danger" onclick="triggerRestore()"><span class="material-symbols-outlined">upload</span>${t('btn_restore')}</button>
+          <input type="file" id="restoreFile" accept=".cdbak,.json" style="display: none;" onchange="handleRestoreFile(event)">
+          <small style="color: var(--text-muted);">${t('backup_restore_hint')}</small>
+        </div>
+      </section>
     </div>`;
 }
 function renderRecords() {
@@ -1508,7 +1520,14 @@ function renderProjectEditor(container = $("#content"), embedded = false) {
           </div>
         </section>
       </div>
-      ${id ? `<section class="editor-section danger-zone">
+      ${id ? `
+      <section class="editor-section copy-zone" style="margin-bottom: 20px;">
+        <h3>${t('copy_project')}</h3>
+        <p>${t('copy_project_hint')}</p>
+        <button type="button" class="copy-project-btn" onclick="copyProject('${id}')"><span class="material-symbols-outlined">content_copy</span>${t('copy_project')}</button>
+      </section>
+
+      <section class="editor-section danger-zone">
         <h3>${t('danger_delete_project')}</h3>
         <p>${t('danger_delete_hint')}</p>
         <button type="button" class="danger" onclick="deleteProjectDeep('${id}', '${esc(p.name)}')">${t('danger_delete_project')}</button>
@@ -2009,6 +2028,49 @@ async function saveProject(id) {
   }
   try {
     await save("projects", id, editorProjectPayload());
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
+async function copyProject(id) {
+  if (!id) return;
+  if (!confirm(t('confirm_copy_project') || "确定要复制该项目吗？")) return;
+
+  const btn = document.querySelector(".copy-project-btn");
+  const originalHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="material-symbols-outlined" style="animation: spin 1.2s linear infinite;">sync</span>${t('copying') || "复制中..."}`;
+  }
+
+  try {
+    const payload = editorProjectPayload();
+    payload.code = ""; // 项目编号根据新建项目留空时逻辑自动新建
+    payload.name = (payload.name || "") + "Copy New"; // 项目名称改成原项目名称+Copy New
+
+    const saved = await api("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    await load();
+    if (saved && saved.id) {
+      state.editorProjectId = saved.id;
+      state.view = "project-editor";
+      syncRoute();
+      render();
+    } else {
+      state.view = "projects";
+      state.editorProjectId = "";
+      syncRoute();
+      render();
+    }
   } catch (e) {
     alert(e.message);
   } finally {
@@ -2699,4 +2761,78 @@ $("#publishModal").addEventListener("close", () => {
   closeLogStream();
   if (shouldRefresh) load().catch(e => alert(e.message));
 });
+async function exportBackup() {
+  try {
+    const res = await fetch("/api/system/backup");
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { msg = (await res.json()).error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const disp = res.headers.get("content-disposition");
+    let filename = `codedep_backup_${new Date().toISOString().slice(0,10).replace(/-/g, "")}.cdbak`;
+    if (disp && disp.indexOf("filename=") !== -1) {
+      filename = disp.split("filename=")[1].replace(/['"]/g, "");
+    }
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    alert((t('backup_failed') || "备份失败: ") + e.message);
+  }
+}
+
+function triggerRestore() {
+  const fileInput = document.getElementById("restoreFile");
+  if (fileInput) {
+    fileInput.value = "";
+    fileInput.click();
+  }
+}
+
+async function handleRestoreFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!confirm(t('confirm_restore_1') || "确定要还原该备份文件吗？这会清除现有系统的所有节点、用户、密钥、worker 和项目配置！")) {
+    event.target.value = "";
+    return;
+  }
+
+  if (!confirm(t('confirm_restore_2') || "警告：当前系统所有数据将被永久覆盖且不可撤销！你真的确定要执行此操作吗？")) {
+    event.target.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const text = e.target.result;
+      const parsed = JSON.parse(text);
+      if (parsed.version !== 1 || !parsed.users) {
+        throw new Error("无效的备份文件格式");
+      }
+
+      await api("/api/system/restore", {
+        method: "POST",
+        body: text
+      });
+
+      alert(t('restore_success') || "还原成功！系统将重新加载。");
+      location.reload();
+    } catch (err) {
+      alert((t('restore_failed') || "还原失败: ") + err.message);
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
 load().catch(e => alert(e.message));
+

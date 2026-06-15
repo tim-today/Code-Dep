@@ -299,6 +299,8 @@ func main() {
 	mux.HandleFunc("/api/publish/", server.publishByID)
 	mux.HandleFunc("/api/logs/", server.logs)
 	mux.HandleFunc("/api/git/refs", server.gitRefs)
+	mux.HandleFunc("/api/system/backup", server.backupExport)
+	mux.HandleFunc("/api/system/restore", server.backupRestore)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -1598,6 +1600,126 @@ func (s *Server) projects(w http.ResponseWriter, r *http.Request) {
 	default:
 		fail(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+type BackupData struct {
+	Version       int            `json:"version"`
+	Timestamp     string         `json:"timestamp"`
+	NextID        int64          `json:"nextId"`
+	Users         []User         `json:"users"`
+	Nodes         []Node         `json:"nodes"`
+	Secrets       []Secret       `json:"secrets"`
+	Workers       []Worker       `json:"workers"`
+	Notifications []Notification `json:"notifications"`
+	Projects      []Project      `json:"projects"`
+}
+
+func (s *Server) backupExport(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	s.store.mu.RLock()
+	defer s.store.mu.RUnlock()
+
+	data := BackupData{
+		Version:       1,
+		Timestamp:     time.Now().Format(time.RFC3339),
+		NextID:        s.store.NextID,
+		Users:         s.store.Users,
+		Nodes:         s.store.Nodes,
+		Secrets:       s.store.Secrets,
+		Workers:       s.store.Workers,
+		Notifications: s.store.Notifications,
+		Projects:      s.store.Projects,
+	}
+
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		fail(w, 500, err.Error())
+		return
+	}
+
+	filename := fmt.Sprintf("codedep_backup_%s.cdbak", time.Now().Format("20060102_150405"))
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Write(b)
+}
+
+func (s *Server) backupRestore(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		fail(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	var data BackupData
+	if err := readJSON(r, &data); err != nil {
+		fail(w, 400, "无效的备份文件数据: "+err.Error())
+		return
+	}
+
+	if data.Version != 1 {
+		fail(w, 400, "不支持的备份版本")
+		return
+	}
+
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+
+	// 清理物理目录 data/projects，清除所有旧项目的 config.json 和 records
+	projectsDir := filepath.Join(s.store.dataDir, "projects")
+	if err := os.RemoveAll(projectsDir); err != nil && !os.IsNotExist(err) {
+		fail(w, 500, "清理旧数据失败: "+err.Error())
+		return
+	}
+
+	// 还原数据到内存 Store 中
+	s.store.NextID = data.NextID
+	if s.store.NextID == 0 {
+		s.store.NextID = 1
+	}
+
+	s.store.Users = data.Users
+	if s.store.Users == nil {
+		s.store.Users = []User{}
+	}
+
+	s.store.Nodes = data.Nodes
+	if s.store.Nodes == nil {
+		s.store.Nodes = []Node{}
+	}
+
+	s.store.Secrets = data.Secrets
+	if s.store.Secrets == nil {
+		s.store.Secrets = []Secret{}
+	}
+
+	s.store.Workers = data.Workers
+	if s.store.Workers == nil {
+		s.store.Workers = []Worker{}
+	}
+
+	s.store.Notifications = data.Notifications
+	if s.store.Notifications == nil {
+		s.store.Notifications = []Notification{}
+	}
+
+	s.store.Projects = data.Projects
+	if s.store.Projects == nil {
+		s.store.Projects = []Project{}
+	}
+
+	s.store.Records = []Record{}
+
+	// 将新数据存入磁盘中（此时会自动使用当前环境的 encKey 进行加密）
+	if err := s.store.saveAll(); err != nil {
+		fail(w, 500, "保存还原数据失败: "+err.Error())
+		return
+	}
+
+	respond(w, map[string]string{"status": "ok"})
 }
 
 func (s *Server) projectByID(w http.ResponseWriter, r *http.Request) {

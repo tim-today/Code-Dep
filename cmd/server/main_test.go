@@ -478,3 +478,84 @@ func TestCleanupReleases(t *testing.T) {
 		t.Fatalf("expected index.json to have 2 metas, got %d", len(idxMetas))
 	}
 }
+
+func TestBackupAndRestore(t *testing.T) {
+	dataDir := t.TempDir()
+	server := &Server{
+		store: &Store{
+			dataDir: dataDir,
+			Users: []User{
+				{ID: "u1", Code: "admin", Role: "admin"},
+				{ID: "u2", Code: "user", Role: "user"},
+			},
+			Nodes: []Node{
+				{ID: "node1", Code: "node-1", Group: "prod"},
+			},
+			Secrets: []Secret{
+				{ID: "sec1", Code: "sec-1", Username: "user1", Password: "pwd"},
+			},
+			Workers: []Worker{
+				{ID: "w1", Name: "w-1"},
+			},
+			Notifications: []Notification{
+				{ID: "n1", Code: "n-1"},
+			},
+			Projects: []Project{
+				{ID: "proj1", Name: "proj-1", Code: "P001"},
+			},
+			NextID: 10,
+		},
+		sessions: map[string]Session{"sid": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+
+	// 1. 测试备份 Export
+	reqExport := httptest.NewRequest(http.MethodGet, "/api/system/backup", nil)
+	reqExport.AddCookie(&http.Cookie{Name: "qfb_session", Value: "sid"})
+	rrExport := httptest.NewRecorder()
+
+	server.backupExport(rrExport, reqExport)
+
+	if rrExport.Code != http.StatusOK {
+		t.Fatalf("export backup failed: status = %d, body = %s", rrExport.Code, rrExport.Body.String())
+	}
+
+	// 验证导出的文件头
+	disp := rrExport.Header().Get("Content-Disposition")
+	if !strings.Contains(disp, "attachment; filename=") {
+		t.Fatalf("expected Content-Disposition attachment header, got %q", disp)
+	}
+
+	// 2. 测试还原 Restore
+	var backup BackupData
+	if err := json.Unmarshal(rrExport.Body.Bytes(), &backup); err != nil {
+		t.Fatalf("failed to unmarshal backup JSON: %v", err)
+	}
+
+	backup.NextID = 99
+	backup.Nodes = append(backup.Nodes, Node{ID: "node2", Code: "node-2", Group: "staging"})
+
+	b, _ := json.Marshal(backup)
+
+	reqRestore := httptest.NewRequest(http.MethodPost, "/api/system/restore", strings.NewReader(string(b)))
+	reqRestore.AddCookie(&http.Cookie{Name: "qfb_session", Value: "sid"})
+	rrRestore := httptest.NewRecorder()
+
+	server.backupRestore(rrRestore, reqRestore)
+
+	if rrRestore.Code != http.StatusOK {
+		t.Fatalf("restore backup failed: status = %d, body = %s", rrRestore.Code, rrRestore.Body.String())
+	}
+
+	// 验证还原后的 store 数据
+	server.store.mu.RLock()
+	defer server.store.mu.RUnlock()
+
+	if server.store.NextID != 99 {
+		t.Fatalf("expected NextID to be restored to 99, got %d", server.store.NextID)
+	}
+
+	if len(server.store.Nodes) != 2 || server.store.Nodes[1].Code != "node-2" {
+		t.Fatalf("expected nodes to be restored, got %#v", server.store.Nodes)
+	}
+}
+
